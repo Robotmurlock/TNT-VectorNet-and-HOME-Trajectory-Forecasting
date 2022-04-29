@@ -1,0 +1,407 @@
+%%%% File: matfmaster.sty
+%%%% Author: Filip Marić
+%%%% Version: 1.0
+%%%% Description (serbian):
+%%%%   Stil master teza Matematičkog fakulteta u Beogradu
+%%%%   Za prevođenje se može koristiti:
+%%%%     pdflatex
+%%%%     xelatex  - ovo je preporučena opcija, ali je potrebno da su instalirani
+%%%%                OpenType fontovi CMU Serif i OpenSans (isporučeni su uz ovaj paket)
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{matfmaster}[2015/10/01 v.1.0 MATF master teza]
+
+%%%% ---------------------------------------------------------------------------
+%%%% Opcije paketa
+%%%% ---------------------------------------------------------------------------
+
+%% Izbor pisma: podrazumevano pismo je ćirilica, a latinica se uključuje
+%% navođenjem opcije [latinica] 
+%% tj. \usepackage[latinica]{matfmaster}
+\newif\ifmatfmaster@latinica
+\DeclareOption{latinica}{\matfmaster@latinicatrue}
+%% Izbor sistema za bibliografiju: podrazumevani sistem je bibtex, dok
+%% se savremeniji sistem biblatex uključuje navođenjem opcije [biblatex]
+%% tj. \usepackage[biblatex]{matfmaster}
+\newif\ifmatfmaster@biblatex
+\DeclareOption{biblatex}{\matfmaster@biblatextrue}
+%% Izbor b5 veličine za štampu: podrazumevana veličina je a4, dok
+%% se veličina b5 uključuje navođenjem opcije [b5]
+%% tj. \usepackage[b5]{matfmaster}
+\newif\ifmatfmaster@bfive
+\DeclareOption{b5paper}{\matfmaster@bfivetrue}
+%% Opcija a4 je podrazumevana i dopuštamo je samo uniformnosti radi
+\DeclareOption{a4paper}{\matfmaster@bfivefalse}
+
+% procesiramo sve opcije
+\ProcessOptions\relax
+
+
+%%%% ---------------------------------------------------------------------------
+%%%% Stil je zasnovan na klasi memoir
+%%%% ---------------------------------------------------------------------------
+\@ifclassloaded{memoir}%
+  {\let\endmatfmaster\relax}%
+  {\let\endmatfmaster\endinput\PackageError{matfmaster}{Stil matfmaster zahteva klasu memoir}{\@ehd}}
+\endmatfmaster
+
+%%%% ---------------------------------------------------------------------------
+%%%% Podešavanje karaktera i fontova
+%%%% ---------------------------------------------------------------------------
+\ifxetex %% ako se koristi xetex (tj. xelatex)
+  % višejezički paket polyglossia
+  \RequirePackage{polyglossia}
+  % vršimo razna podešavanja jezika i fontova
+  % uključujemo TeX preslikavanja (npr. -- u –)
+  \defaultfontfeatures{Mapping=tex-text}
+  \ifmatfmaster@latinica  % ako je izabrana latinica
+    % osnovni jezik je srpski, latinicom
+    \setdefaultlanguage[script=Latin]{serbian}
+    % drugi jezik je engleski
+    \setotherlanguage{english}
+    % osnovni font je CMU Serif
+    \setmainfont{CMU Serif}
+    % odmah postavljamo srpski jezik (i pre \begin{document})
+    \selectlanguage{serbian}
+  \else                    % ako je izabrana ćirilica
+    % osnovni jezik je srpski, ćirilicom
+    \setdefaultlanguage[script=Cyrillic]{serbian}
+    % drugi jezik je engleski
+    \setotherlanguage{english}
+    % osnovni font je CMU Serif
+    % da bi Small Caps radili ćirilicom, potrebno je koristiti se trikovima (privremeno isključiti srpski jezik)
+    \setmainfont[SmallCapsFont={CMU Serif},SmallCapsFeatures={Language=Default,Letters=SmallCaps}]{CMU Serif}
+    \setmonofont{CMU Typewriter Text}
+    % odmah postavljamo srpski jezik (i pre \begin{document})
+    \selectlanguage{serbian}
+  \fi
+  % sans-serif font za naslovne strane
+  \newfontfamily\headersans{Open Sans}
+
+  % komande i okruženja za korišćenje ćirilice u latiničkom tekstu
+  % i obratno nemaju smisla, ali opet ih definišemo, da bi dokumenti 
+  % pripremljeni za pdflatex mogli da se prevode bez problema i pomoću 
+  % xelatex-a
+  \newcommand{\cir}{}
+  \newenvironment{cirilica}{}{}
+  \newcommand{\lat}{}
+  \newenvironment{latinica}{}{}
+%%%%%
+\else % ako se koristi pdflatex
+  % ulazno kodiranje postavljamo na utf-8
+  \usepackage[utf8]{inputenc}
+  \ifmatfmaster@latinica      % ako je odabrana latinica
+    % koristimo višejezički paket babel
+    % osnovni jezik je srpski latinicom, a pomoćni su srpski ćirilicom i engleski
+    \usepackage[english,serbianc,serbian]{babel}
+    % osnovno izlazno kodiranje je T1 (podržava srpsku latinicu), a pomoćno je T2A (podržava ćirlicu)
+    % ako se ne koristi T1 kodiranje, dijakritici ČŠŽĆĐ nisu ispravni u pdf dokumentu (ne mogu se pretraživati, kopirati, ...)
+    \usepackage[T2A,T1]{fontenc}
+
+    % komanda i okruženje za ćirličke delove teksta (umetnute u latinički osnovni tekst)
+    % potrebno je promeniti jezik (zbog hifenacije) i izlazno kodiranje karaktera
+    \newcommand{\cir}{\selectlanguage{serbianc}\fontencoding{T2A}\selectfont}
+    \newenvironment{cirilica}{\begin{otherlanguage}{serbianc}\fontencoding{T2A}\selectfont}{\end{otherlanguage}}
+    % komanda i okruženje za latiničke delove teksta nemaju smisla (jer je tekst u osnovi latinički),
+    % ali ih ipak definišemo da ne bi došlo do greške prilikom prevođenja ako ih neko slučajno upotrebi
+    \newcommand{\lat}{}
+    \newenvironment{latinica}{}{}
+
+  \else                         % ako je odabrana ćirilica
+    % koristimo višejezički paket babel
+    % osnovni jezik je srpski ćirilicom, a pomoćni su srpski latinicom i engleski
+    \usepackage[english,serbian,serbianc]{babel}
+    % osnovno izlazno kodiranje je T2A (podržava ćirlicu), a pomoćno je T1 (podržava srpsku latinicu)
+    % ako se ne koristi T1 kodiranje, dijakritici ČŠŽĆĐ nisu ispravni u pdf dokumentu (ne mogu se pretraživati, kopirati, ...)
+    \usepackage[T1,T2A]{fontenc}
+
+    % komanda i okruženje za ćiriličke delove teksta nemaju smisla (jer je tekst u osnovi ćirilički),
+    % ali ih ipak definišemo da ne bi došlo do greške prilikom prevođenja ako ih neko slučajno upotrebi
+    \newcommand{\cir}{}
+    \newenvironment{cirilica}{}{}
+    % komanda i okruženje za latiničke delove teksta (umetnute u ćirilički osnovni tekst)
+    % potrebno je promeniti jezik (zbog hifenacije) i izlazno kodiranje karaktera
+    \newcommand{\lat}{\selectlanguage{serbian}\fontencoding{T1}\selectfont}
+    \newenvironment{latinica}{\begin{otherlanguage}{serbian}\fontencoding{T1}\selectfont}{\end{otherlanguage}}
+  \fi
+  
+  % sans-serif font za naslovne strane
+  \newcommand{\headersans}{\fontfamily{fos}\selectfont}
+\fi
+
+%%%% pomoćna komanda \size{} podešava veličinu fonta (veličina se zadaje u pt, npr. {\size{10pt} ...})
+\newlength\fntht
+\newcommand*{\size}[2][1.2]{%
+  \setlength\fntht{#2}%
+  \fontsize{\fntht}{#1\fntht}%
+  \selectfont}
+
+
+%%%% ---------------------------------------------------------------------------
+%%%% Uključujemo pomoćne pakete
+%%%% ---------------------------------------------------------------------------
+
+% paket omogućava uključivanje slika u png, jpg, ... formatu
+\RequirePackage{graphicx}
+% paket omogućava uključivanje gotovih pdf dokumenata
+\RequirePackage{pdfpages}
+% paket omogućava 
+\RequirePackage{url}
+% paket omogućava automatsko podešavanje navodnika
+\RequirePackage{csquotes}
+\DeclareQuoteAlias{croatian}{serbian}   % pošto csquotes nije lokalizovan na srpski
+\DeclareQuoteAlias{croatian}{serbianc}  % koristimo pravila za hrvatski jezik
+\MakeOuterQuote{"}  % korisnik tekst pod navodnicima obeležava sa "..."
+
+% paket omogućava korišćenje izraza u specifikacijama dimenzija (npr. 30mm + 2\onelineskip)
+\RequirePackage{calc}
+% paket omogućava proveru da li se koristi xelatex ili pdflatex
+\RequirePackage{ifxetex}
+
+% paket biblatex omogućava naprednije, višejezičke bibliografije (sa podrškom za Unicode)
+\ifmatfmaster@biblatex % ako je navedena opcija biblatex
+   % uključujemo paket biblatex i navodimo njegove opcije
+   \PassOptionsToPackage{backend=biber,autolang=other}{biblatex}
+   \RequirePackage{biblatex}
+\fi
+
+% paket hyperref omogućava linkove u pdf dokumentima
+\PassOptionsToPackage{unicode}{hyperref}
+\ifxetex
+\PassOptionsToPackage{xetex}{hyperref}
+\fi
+\RequirePackage{hyperref}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Podešavamo parametre strane (opcije klase memoir)
+%%%% za detalje parametara videti dokumentaciju klase memoir 
+%%%% (https://www.ctan.org/pkg/memoir?lang=en)
+%%%% ---------------------------------------------------------------------------
+
+% podešavamo veličinu strane (A4 papir osim ako je navedena opcija b5paper kad se koristi B5 papir)
+\ifmatfmaster@bfive 
+  \setstocksize{250mm}{176mm}
+\else
+  \setstocksize{297mm}{210mm}
+\fi
+% nema obruba strane
+\settrimmedsize{\stockheight}{\stockwidth}{*}
+
+% osnovna veličina margine (3cm ako za A4 tj. 2cm za B5)
+\newlength{\@basemargin}
+\ifmatfmaster@bfive 
+  \setlength{\@basemargin}{20mm}
+\else
+  \setlength{\@basemargin}{30mm}
+\fi
+
+% podešavamo levu i desnu marginu
+\setlrmarginsandblock{\@basemargin}{\@basemargin}{*}
+ % podešavamo gornju i donju marginu ()
+\setulmarginsandblock{\@basemargin+2\onelineskip}{\@basemargin+\onelineskip}{*}
+% podešavamo veličinu zaglavlja i podnožja strane
+\setheadfoot{1.1\onelineskip}{2\onelineskip}
+\setheaderspaces{*}{\onelineskip}{*}
+% pokrećemo izračunavanja 
+\settypeoutlayoutunit{mm}
+\checkandfixthelayout
+
+% postavljamo prored 1.5 (osim u b5 varijanti gde je prored jednostruk)
+\ifmatfmaster@bfive
+\setSpacing{1.1}
+\else
+\OnehalfSpacing
+\fi
+
+% kreiramo stil strane koji nazivamo matfmaster
+\makepagestyle{matfmaster}
+  % zaglavlja (pošto je stil jednostran, isto je i za leve i za desne strane)
+  % na levom delu zaglavlja prikazujemo naslov glave
+  \makeoddhead{matfmaster}{\itshape\rightmark}{}{}
+  \makeevenhead{matfmaster}{\itshape\rightmark}{}{}
+  % podnožja (pošto je stil jednostran, isto je i za leve i za desne strane)
+  % u desnom delu podnožja prikazujemo broj strane
+  \makeevenfoot{matfmaster}{}{}{\thepage}
+  \makeoddfoot{matfmaster}{}{}{\thepage}
+  % postavljamo liniju celom širinom zaglavlja
+  \makeheadrule{matfmaster}{\textwidth}{\normalrulethickness}
+
+% kreiramo stil prve strane glava (chapter)
+% stil kreiramo krenuvši od potpuno praznog (nema ni zaglavlja ni podnožja)
+\copypagestyle{chapter}{plain}
+  % podnožja (pošto je stil jednostran, isto je i za leve i za desne strane)
+  % u desnom delu podnožja prikazujemo broj strane
+  \makeoddfoot{chapter}{}{}{\thepage}
+  \makeevenfoot{chapter}{}{}{\thepage}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Naslovna strana na srpskom jeziku
+%%%% ---------------------------------------------------------------------------
+
+% korisničke komande za definisanje osnovnih metapodataka
+\newcommand{\autor}[1]{\def\matfautor{#1}}
+\newcommand{\naslov}[1]{\def\matfnaslov{#1}}
+\newcommand{\godina}[1]{\def\matfgodina{#1}}
+
+% natpisi na naslovnoj strani (podešeni u zavisnosti od odabranog pisma)
+\newcommand{\@univerzitet}{\ifmatfmaster@latinica Univerzitet u Beogradu\else Универзитет у Београду\fi}
+\newcommand{\@fakultet}{\ifmatfmaster@latinica Matematički fakultet\else Математички факултет\fi}
+\newcommand{\@disertacija}{\ifmatfmaster@latinica master rad\else мастер рад\fi}
+\newcommand{\@grad}{\ifmatfmaster@latinica Beograd\else Београд\fi}
+
+% veličine fonta u zaglavlju (za a4 papir su propisane univerzitetskim pravilima)
+\ifmatfmaster@bfive
+\newcommand{\@headerfontsizeA}{14pt}
+\newcommand{\@headerfontsizeB}{18pt}
+\newcommand{\@headerfontsizeC}{12pt}
+\else
+\newcommand{\@headerfontsizeA}{16pt}
+\newcommand{\@headerfontsizeB}{22pt}
+\newcommand{\@headerfontsizeC}{14pt}
+\fi
+
+% komanda za kreiranje naslovne strane na srpskom jeziku
+\newcommand{\naslovna}{%
+\begin{DoubleSpace}     % dvostruki prored
+  {\clearpage           % nova strana
+  \thispagestyle{empty} % nema ni zaglavlja ni podnožja
+  \centering            % sav sadržaj je centriran
+  {\headersans          % sve je u sans-serif fontu
+  {\size{\@headerfontsizeA} \MakeTextUppercase{\@univerzitet}}\\  % naziv univerziteta u fontu 16pt
+  {\size{\@headerfontsizeA} \MakeTextUppercase{\@fakultet}}\\[2em]     % naziv fakulteta u fontu 16pt
+  {\includegraphics[width=3cm]{matf.png}}\\
+
+  \vspace{6em}                                                   % šest praznih redova
+  {\size{\@headerfontsizeA} \matfautor}\\[3em]                     % ime autora u fontu 16pt i 3 prazna reda
+  {\size{\@headerfontsizeB} \textbf{\MakeTextUppercase{\matfnaslov}}}\\[3em] % naslov teze u fontu 22pt, svim velikim slovima i 3 prazna reda
+  {\size{\@headerfontsizeA} \@disertacija}                         % oznaka da je u pitanju disertacija u fontu 16pt
+  \vfill                                                          % praznina do dna strane
+  {\size{\@headerfontsizeC} \@grad, \matfgodina.}                  % oznaka grada i godine u fontu 14pt
+  }
+  \clearpage}           % nova strana
+\end{DoubleSpace}
+}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Strana sa podacima o mentoru i članovima komisije
+%%%% ---------------------------------------------------------------------------
+
+% natpisi na strani (podešeni u zavisnosti od odabranog pisma)
+\newcommand{\@mentor}{\ifmatfmaster@latinica Mentor\else Ментор\fi}
+\newcommand{\@clanovi}{\ifmatfmaster@latinica Članovi komisije\else Чланови комисије\fi}
+\newcommand{\@datumodbrane}{\ifmatfmaster@latinica Datum odbrane\else Датум одбране\fi}
+
+% korisničke komande za definisanje metapodataka o mentoru i članovima komisije
+% prva dva člana komisije je obavezno definisati, a ostali mogu biti preskočeni
+\newcommand{\mentor}[1]{\def\matfmentor{#1}}
+\newcommand{\komisijaA}[1]{\def\matfkomisijaA{#1}}
+\newcommand{\komisijaB}[1]{\def\matfkomisijaB{#1}}
+\newcommand{\komisijaC}[1]{\def\matfkomisijaC{#1}}
+\newcommand{\komisijaD}[1]{\def\matfkomisijaD{#1}}
+\newcommand{\datumodbrane}[1]{\def\matfdatumodbrane{#1}}
+
+% komanda kojom se kreira strana sa podacima o mentoru i članovima komisije
+\newcommand{\komisija}{%
+  {\clearpage                                 % nova strana
+  \thispagestyle{empty}                       % nema ni zaglavlja ni podnožja
+  {\size{14pt}                                % font 14pt
+  \mbox{}\\[5em]                              % pet praznih linija od vrha strane
+  \noindent \textbf{\@mentor}: \\[2em]        % natpis "Mentor:" i dve prazne linije
+  \noindent\matfmentor \\[5em]                % ime mentora i pet praznih linija
+  \noindent \textbf{\@clanovi}: \\[2em]       % natpis "Članovi komisije:" i dve prazne linije
+  \noindent\matfkomisijaA \\[1em]             % prvi član komisije
+  \noindent\matfkomisijaB \\[1em]             % drugi član komisije
+  \ifx\matfkomisijaC\undefined                % ako nije definisan treći član komisije
+  \vspace{5em}                                %    praznih pet linija
+  \else                                       % u suprotnom
+  \noindent\matfkomisijaC \\[1em]             %    treći član komisije
+  \ifx\matfkomisijaD\undefined                %    ako nije definisan četvrti član komisije
+  \vspace{3em}                                %       tri prazne linije
+  \else                                       %    u suprotnom
+  \noindent\matfkomisijaD \\[1em]             %       četvrti član komisije
+  \vspace{1em}                                %       jedna prazna linija
+  \fi
+  \fi
+
+  \noindent \textbf{\@datumodbrane}:          % natpis "Datum odbrane:"
+  \ifx\matfdatumodbrane\undefined             % i datum odbrane ili crta za ručno upisivanje datuma
+    \rule{5cm}{0.4pt}
+  \else
+     \matfdatumodbrane
+  \fi
+  }
+  \clearpage}                                 % nova strana
+}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Strana sa posvetom
+%%%% ---------------------------------------------------------------------------
+
+% komanda za kreiranje strane sa posvetom
+\newcommand{\posveta}[1]{%
+{\clearpage                           % novastrana
+\thispagestyle{empty}                 % nema ni zaglavlja ni podnožja
+\mbox{}\vspace{10em}                  % 10 praznih linija od vrha strane
+\flushright                           % poravnato nadesno
+{\Large \emph{#1}} \par               % ispisana posveta, velikim fontom, u kurzivu i prelazak u novi red
+\vfill                                % praznina do dna strane
+\clearpage}%                          % nova strana
+}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Strane sa metapodacima na srpskom i engleskom jeziku
+%%%% ---------------------------------------------------------------------------
+
+% korisničke komande za definisanje metapodataka
+\newcommand{\apstr}[1]{\def\matfapstr{#1}}              % apstrakt na srpskom jeziku
+\newcommand{\kljucnereci}[1]{\def\matfkljucnereci{#1}}  % ključne reči na srpskom jeziku
+
+% natpisi (na odgovarajućem pismu)
+\newcommand{\@naslov}{\ifmatfmaster@latinica Naslov master rada\else Наслов мастер рада\fi}
+\newcommand{\@rezime}{\ifmatfmaster@latinica Rezime\else Резиме\fi}
+\newcommand{\@kljucnereci}{\ifmatfmaster@latinica Ključne reči\else Кључне речи\fi}
+
+% komanda koja kreira stranu sa apstraktom i metapodacima na srpskom jeziku
+\newcommand{\apstrakt}{%
+\pagestyle{empty}
+{\clearpage
+\noindent\textbf{\@naslov}: \matfnaslov\\[2em]
+\noindent\textbf{\@rezime}: \matfapstr\\[2em]
+\noindent\textbf{\@kljucnereci}: \matfkljucnereci\\[1em]
+\clearpage}
+\pagestyle{matfmaster}
+}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Strana sa biografijom autora
+%%%% ---------------------------------------------------------------------------
+
+\newcommand{\@biografijaautora}{\ifmatfmaster@latinica Biografija autora\else Биографија аутора\fi}
+\newenvironment{biografija}%
+{\clearpage\SingleSpacing\chapter*{\@biografijaautora}\thispagestyle{empty}}%
+{\clearpage}
+
+%%%% ---------------------------------------------------------------------------
+%%%% Komande za definisanje bibliografije
+%%%% ---------------------------------------------------------------------------
+
+% komanda za definisanje imena datoteke sa bibliografijom
+\newcommand{\bib}[1]{%
+\def\matfmaster@bib{#1}%                 % pamtimo parametar u promenljivoj \matfmaster@bib
+\ifmatfmaster@biblatex %                 % ako se koristi biblatex
+  \addbibresource{\matfmaster@bib .bib}%      % bibliografska datoteka se uključuje već u preambuli 
+\fi
+}
+
+% komanda koja kreira stranicu sa literaturom
+\newcommand{\literatura}{%                
+\ifmatfmaster@biblatex %                 % ako se koristi biblatex
+   \printbibliography%
+\else                                      % ako se koristi bibtex
+   \bibliography{\matfmaster@bib}{}%
+   \bibliographystyle{plain}%
+\fi}
+
+%%%%%%%%%%%%%%% end of *.sty file
+\endinput
+%%%%%%%%%%%%%%%
