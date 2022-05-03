@@ -7,9 +7,18 @@ import logging
 
 
 @dataclass
-class DataProcessParametersConfig:
+class LoggerConfig:
+    level: str
+
+
+@dataclass
+class GlobalParametersConfig:
     trajectory_history_window_length: int  # Nh
     trajectory_future_window_length: int  # Nr
+
+
+@dataclass
+class DataProcessParametersConfig:
     trajectory_min_history_window_length: int  # Nhmin
     object_trajectory_min_history_window_length: int  # Nhomin
     object_trajectory_min_future_window_length: int  # Nromin
@@ -27,14 +36,25 @@ class DataProcessConfig:
 
 
 @dataclass
-class LoggerConfig:
-    level: str
+class ModelConfig:
+    name: str
+    config_path: str
+
+
+@dataclass
+class EvaluationConfig:
+    input_path: str
+    output_path: str
+    visualize: bool
 
 
 @dataclass
 class GlobalConfig:
     log: LoggerConfig
+    global_parameters: GlobalParametersConfig
     data_process: DataProcessConfig
+    model: ModelConfig
+    evaluation: EvaluationConfig
 
     def __post_init__(self):
         self.configure_logging()

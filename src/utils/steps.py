@@ -11,7 +11,7 @@ def get_config_path() -> str:
     Returns: config path
     """
     parser = argparse.ArgumentParser(description='Load Global Config')
-    parser.add_argument('--config', type=str, help='config_path')
+    parser.add_argument('--config', default='configs/test.yaml', type=str, help='config_path')
 
     args = parser.parse_args()
     return os.path.join(SOURCE_PATH, args.config)

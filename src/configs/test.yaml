@@ -1,15 +1,23 @@
 log:
   level: 'DEBUG'
+global_parameters:
+  trajectory_history_window_length: 20
+  trajectory_future_window_length: 30
 data_process:
   input_path: 'test_data/data'
   output_path: 'test_data/internal'
   visualize: True
   parameters:
-    trajectory_history_window_length: 20
-    trajectory_future_window_length: 30
     trajectory_min_history_window_length: 5
     object_trajectory_min_history_window_length: 5
     object_trajectory_min_future_window_length: 3
     object_distance_threshold: 100
     max_centerline_distance: 5
     add_neighboring_lanes: True
+model:
+  name: 'constant_velocity'
+  config_path: 'configs/model_config.yaml'
+evaluation:
+  input_path: 'test_data/internal'
+  output_path: 'test_data/result'
+  visualize: True

@@ -5,36 +5,18 @@ import pandas as pd
 
 from utils import steps, trajectories, lists
 from data_processing import exceptions
-from data_processing.data import ScenarioData
+from datasets.data import ScenarioData
+from data_processing import data_process_utils
 
 import configparser
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
 from typing import Tuple, List, Optional
 
-
 import logging
 
 
 logger = logging.getLogger('DataProcess')
-
-
-def approximate_agent_speed(agent_traj_hist: np.ndarray) -> np.ndarray:
-    """
-    Approximates agent speed from history trajectory
-
-    Args:
-        agent_traj_hist: Agent history trajectory
-
-    Returns: Agent speed
-    """
-    next_obs = agent_traj_hist[1:, :2]
-    prev_obs = agent_traj_hist[:-1, :2]
-    diffs = next_obs - prev_obs
-    speed = np.abs(np.sum(diffs, axis=0) / agent_traj_hist[:, 3].sum())  # Ignoring masked values
-
-    assert speed.shape == (2,), f'Wrong shape: Expetced {(2,)} but found {speed.shape}'
-    return speed
 
 
 def process_agent_data(
@@ -46,7 +28,7 @@ def process_agent_data(
     """
     Extracts Agent trajectory:
         - history (features for predictions)
-        - ground truth / future (data for evaluation)
+        - ground truth / future (datasets for evaluation)
         - center point for normalization
 
     Agent features are (x, y, timestamp, mask) where mask is 0 if that part of trajectory is padded.
@@ -93,7 +75,7 @@ def process_agent_data(
         logger.debug(f'Padded {n_missing_points} on agent history trajectory.')
 
     # approximate agent speed
-    agent_speed = approximate_agent_speed(agent_traj_hist)
+    agent_speed = data_process_utils.approximate_agent_speed(agent_traj_hist)
     logger.debug(f'Agent speed: ({agent_speed[0]}, {agent_speed[1]})')
 
     # Asserts
@@ -118,7 +100,7 @@ def process_neighbors_data(
     object_trajectory_min_future_window_length: int
 ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
     """
-    Processes neighbors data (similliar to process_agent_data)
+    Processes neighbors datasets (similliar to process_agent_data)
 
     Args:
         df: Sequence DataFrame
@@ -271,7 +253,7 @@ def process_lane_data(
     add_neighboring_lanes: bool
 ) -> np.ndarray:
     """
-    Generate feature for lane data that are nearby to agent or some object
+    Generate feature for lane datasets that are nearby to agent or some object
 
     Args:
         avm: ArgoverseMap API
@@ -398,7 +380,7 @@ def run(config: configparser.GlobalConfig):
     avm = ArgoverseMap()
     fig = None  # figure for visualization (optional usage)
 
-    logger.info('Started data processing.')
+    logger.info('Started datasets processing.')
     for data in avfl:
         sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
         logger.info(f'Processing sqeuence "{sequence_name}"...')
@@ -406,8 +388,8 @@ def run(config: configparser.GlobalConfig):
         try:
             agent_traj_hist, agent_traj_gt, center_point, agent_speed = process_agent_data(
                 df=data.seq_df,
-                trajectory_history_window_length=parameters.trajectory_history_window_length,
-                trajectory_future_window_length=parameters.trajectory_future_window_length,
+                trajectory_history_window_length=config.global_parameters.trajectory_history_window_length,
+                trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
                 trajectory_min_history_window_length=parameters.trajectory_min_history_window_length
             )
 
@@ -418,8 +400,8 @@ def run(config: configparser.GlobalConfig):
                 agent_traj_gt=agent_traj_gt,
                 agent_speed=agent_speed,
                 object_distance_threshold=parameters.object_distance_threshold,
-                trajectory_history_window_length=parameters.trajectory_history_window_length,
-                trajectory_future_window_length=parameters.trajectory_future_window_length,
+                trajectory_history_window_length=config.global_parameters.trajectory_history_window_length,
+                trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
                 object_trajectory_min_history_window_length=parameters.object_trajectory_min_history_window_length,
                 object_trajectory_min_future_window_length=parameters.object_trajectory_min_future_window_length
             )
@@ -439,12 +421,13 @@ def run(config: configparser.GlobalConfig):
                 city=data.city,
                 agent_traj_hist=agent_traj_hist,
                 center_point=center_point,
-                trajectory_future_window_length=parameters.trajectory_future_window_length,
+                trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
                 max_centerline_distance=parameters.max_centerline_distance
             )
 
             scenario = ScenarioData(
                 id=sequence_name,
+                city=data.city,
                 center_point=center_point,
                 agent_traj_hist=agent_traj_hist,
                 agent_traj_gt=agent_traj_gt,
@@ -457,7 +440,7 @@ def run(config: configparser.GlobalConfig):
             scenario.save(output_path)
             if config.data_process.visualize:
                 fig = scenario.visualize(fig)
-                figpath = os.path.join(output_path, scenario.id, 'scenario.png')
+                figpath = os.path.join(output_path, scenario.dirname, 'scenario.png')
                 fig.savefig(figpath)
 
         except exceptions.DataProcessException:
