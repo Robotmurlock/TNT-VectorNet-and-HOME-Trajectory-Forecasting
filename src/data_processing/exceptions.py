@@ -1,6 +1,6 @@
 class DataProcessException(Exception):
     """
-    Exception in data processing
+    Exception in datasets processing
     """
     pass
 
