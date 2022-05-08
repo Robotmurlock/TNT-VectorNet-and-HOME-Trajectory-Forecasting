@@ -1,2 +1,2 @@
-from utils import steps, lists, trajectories
+from utils import steps, lists, trajectories, image_processing
 

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import yaml
 import dacite
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 import logging
 
@@ -49,12 +49,31 @@ class EvaluationConfig:
 
 
 @dataclass
+class DataProcessRasterizationParametersConfig:
+    agent_view_window_size: int
+    object_shape: List[int]
+    centerline_point_shape: List[int]
+    gauss_kernel_size: int
+    gauss_kernel_sigma: int
+
+
+@dataclass
+class DataProcessRasterizationConfig:
+    input_path: str
+    output_path: str
+    visualize: bool
+    parameters: DataProcessRasterizationParametersConfig
+
+
+@dataclass
 class GlobalConfig:
     log: LoggerConfig
     global_parameters: GlobalParametersConfig
     data_process: DataProcessConfig
     model: ModelConfig
     evaluation: EvaluationConfig
+
+    data_process_rasterization: Optional[DataProcessRasterizationConfig]
 
     def __post_init__(self):
         self.configure_logging()

@@ -5,7 +5,7 @@ import pandas as pd
 
 from utils import steps, trajectories, lists
 from data_processing import exceptions
-from datasets.data import ScenarioData
+from datasets.data_models.scenario import ScenarioData
 from data_processing import data_process_utils
 
 import configparser
@@ -275,7 +275,7 @@ def process_lane_data(
     for center_point in center_points:
         cx, cy = center_point
 
-        object_lane_segment_ids = avm.get_lane_segments_containing_xy(cx, cy, city)
+        object_lane_segment_ids = avm.get_lane_ids_in_xy_bbox(cx, cy, city)
         if add_neighboring_lanes:
             successor_lane_segment_ids = lists.flatten([avm.get_lane_segment_successor_ids(ls, city) for ls in object_lane_segment_ids])
             predecessor_lane_segment_ids = lists.flatten([avm.get_lane_segment_predecessor_ids(ls, city) for ls in object_lane_segment_ids])
