@@ -43,7 +43,7 @@ class ScenarioData:
 
     def save(self, path: str) -> None:
         """
-        Saves Scenario data at given path
+        Saves Scenario data_models at given path
 
         Args:
             path: Path to save object

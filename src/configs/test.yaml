@@ -14,6 +14,16 @@ data_process:
     object_distance_threshold: 100
     max_centerline_distance: 5
     add_neighboring_lanes: True
+data_process_rasterization:
+  input_path: 'test_data/internal'
+  output_path: 'test_data/internal_rasterized'
+  visualize: True
+  parameters:
+    agent_view_window_size: 224
+    object_shape: [6, 6]
+    centerline_point_shape: [6, 6]
+    gauss_kernel_size: 9
+    gauss_kernel_sigma: 4
 model:
   name: 'constant_velocity'
   config_path: 'configs/model_config.yaml'

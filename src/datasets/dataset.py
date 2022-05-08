@@ -3,7 +3,7 @@ from typing import List, Tuple
 from torch.utils.data import Dataset
 import torch
 
-from datasets.data import ScenarioData
+from datasets.data_models.scenario import ScenarioData
 
 
 class ScenarioDataset:
