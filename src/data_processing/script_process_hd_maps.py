@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-from utils import steps, trajectories, lists
+from utils import steps, trajectories, lists, time
 from data_processing import exceptions
 from datasets.data_models.scenario import ScenarioData
 from data_processing import data_process_utils
@@ -185,6 +187,13 @@ def process_neighbors_data(
         objects_traj_hist_list.append(object_traj_hist)
         objects_traj_gt_list.append(object_traj_gt)
 
+    if len(objects_traj_hist_list) == 0:
+        # No objects found, return empty arrays
+        objects_traj_hists = np.zeros(shape=(0, trajectory_history_window_length, 3))
+        objects_traj_gts = np.zeros(shape=(0, trajectory_future_window_length, 3))
+        objects_center_points = []
+        return objects_traj_hists, objects_traj_gts, objects_center_points
+
     objects_traj_hists = np.stack(objects_traj_hist_list)
     objects_traj_gts = np.stack(objects_traj_gt_list)
     # mask feature is dropped, coordinates are denormalized
@@ -277,9 +286,13 @@ def process_lane_data(
 
         object_lane_segment_ids = avm.get_lane_ids_in_xy_bbox(cx, cy, city)
         if add_neighboring_lanes:
-            successor_lane_segment_ids = lists.flatten([avm.get_lane_segment_successor_ids(ls, city) for ls in object_lane_segment_ids])
-            predecessor_lane_segment_ids = lists.flatten([avm.get_lane_segment_predecessor_ids(ls, city) for ls in object_lane_segment_ids])
-            adjacent_lane_segment_ids = lists.flatten([avm.get_lane_segment_adjacent_ids(ls, city) for ls in object_lane_segment_ids])
+            successors_ls_ids_output = [avm.get_lane_segment_successor_ids(ls, city) for ls in object_lane_segment_ids]
+            predecessor_ls_ids_output = [avm.get_lane_segment_predecessor_ids(ls, city) for ls in object_lane_segment_ids]
+            adjacent_ls_ids_output = [avm.get_lane_segment_adjacent_ids(ls, city) for ls in object_lane_segment_ids]
+
+            successor_lane_segment_ids = lists.flatten([ls_id for ls_id in successors_ls_ids_output if ls_id is not None])
+            predecessor_lane_segment_ids = lists.flatten([ls_id for ls_id in predecessor_ls_ids_output if ls_id is not None])
+            adjacent_lane_segment_ids = lists.flatten([ls_id for ls_id in adjacent_ls_ids_output if ls_id is not None])
 
             object_lane_segment_ids = object_lane_segment_ids + successor_lane_segment_ids + predecessor_lane_segment_ids + adjacent_lane_segment_ids
             object_lane_segment_ids = [lsi for lsi in object_lane_segment_ids if lsi is not None]  # filter `None` values
@@ -307,6 +320,8 @@ def process_lane_data(
         lsi_data = np.hstack([centerline, tiled_metadata])
         lsi_data_list.append(lsi_data)
 
+    if len({lsi_data.shape[0] for lsi_data in lsi_data_list}) != 1:
+        raise exceptions.InvalidLaneLengthSeequencesException('Lane polygon do not match or missing!')
     data = np.stack(lsi_data_list)
 
     # Asserts
@@ -365,6 +380,7 @@ def find_and_process_centerline_features(
     return centerlines
 
 
+@time.timeit
 def run(config: configparser.GlobalConfig):
     """
     Processes rad HD map using ArgoVerse API
@@ -375,15 +391,22 @@ def run(config: configparser.GlobalConfig):
     parameters = config.data_process.parameters
     dataset_path = os.path.join(steps.SOURCE_PATH, config.data_process.input_path)
     output_path = os.path.join(steps.SOURCE_PATH, config.data_process.output_path)
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    completed_sequences = set(os.listdir(output_path))
 
     avfl = ArgoverseForecastingLoader(dataset_path)
     avm = ArgoverseMap()
     fig = None  # figure for visualization (optional usage)
 
     logger.info('Started datasets processing.')
-    for data in avfl:
+    for data in tqdm(avfl, total=len(avfl)):
         sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
-        logger.info(f'Processing sqeuence "{sequence_name}"...')
+        sequence_fullname = f'{data.city}_{sequence_name}'
+        if sequence_fullname in completed_sequences:
+            logger.debug(f'Sequence "{sequence_fullname}" already processed!')
+            continue
+
+        logger.debug(f'Processing sequence "{sequence_fullname}"...')
 
         try:
             agent_traj_hist, agent_traj_gt, center_point, agent_speed = process_agent_data(
@@ -443,8 +466,8 @@ def run(config: configparser.GlobalConfig):
                 figpath = os.path.join(output_path, scenario.dirname, 'scenario.png')
                 fig.savefig(figpath)
 
-        except exceptions.DataProcessException:
-            logger.warning(f'Skipped "{sequence_name}" sequence!')
+        except exceptions.DataProcessException as e:
+            logger.warning(f'Skipped "{sequence_name}" sequence! Error: "{e}"')
 
 
 if __name__ == '__main__':

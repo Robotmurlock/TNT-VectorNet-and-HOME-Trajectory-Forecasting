@@ -17,3 +17,10 @@ class NoCandidateCenterlinesWereFoundException(DataProcessException):
     No candidates centerlines were found for queried trajectory
     """
     pass
+
+
+class InvalidLaneLengthSeequencesException(DataProcessException):
+    """
+    Bad lane length sequence exception
+    """
+    pass

@@ -27,20 +27,8 @@ class RasterScenarioData:
         return f'{self.city}_{self.id}'
 
     @property
-    def features(self) -> Tuple[torch.Tensor, ...]:
-        """
-        Returns: Input features for PyTorch models
-        """
-        items = (self.agent_traj_hist, self.objects_traj_hists, self.raster_features)
-        return tuple(torch.tensor(item, dtype=torch.float32) for item in items)
-
-    @property
-    def ground_truth(self) -> Tuple[torch.Tensor, ...]:
-        """
-        Returns: Ground truth for PyTorch models
-        """
-        items = (self.agent_traj_gt, self.objects_traj_gts, self.heatmap)
-        return tuple(torch.tensor(item, dtype=torch.float32) for item in items)
+    def window_size(self) -> int:
+        return self.raster_features.shape[0]
 
     def save(self, path: str) -> None:
         """
@@ -110,11 +98,6 @@ class RasterScenarioData:
         else:
             fig.clf()
 
-        # remove duplicated labels
-        handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc='upper right')
-
         image = np.zeros(shape=(self.heatmap.shape[0], self.heatmap.shape[1], 3))
 
         # plot drivable area
@@ -122,16 +105,15 @@ class RasterScenarioData:
             image[:, :, i] = 0.5*self.raster_features[0]
 
         # plot agent and other objects
-        for timestamp_index in range(self.agent_traj_hist.shape[0]):
-            image[:, :, 1] = np.maximum(image[:, :, 1], self.raster_features[1+timestamp_index])
-            image[:, :, 0] = np.maximum(image[:, :, 0], self.raster_features[1+self.agent_traj_hist.shape[0] + timestamp_index])
+        image[:, :, 1] = np.maximum(image[:, :, 1], self.raster_features[1])
+        image[:, :, 0] = np.maximum(image[:, :, 0], 0.7*self.raster_features[2])
 
         # plot ground truth (heatmap)
         for i in range(3):
             image[:, :, i] = np.maximum(image[:, :, i], self.heatmap)
 
         # Show image
-        plt.imshow(image, origin='lower')
+        plt.imshow(image, origin='lower', cmap='gray')
 
         # set title and axis info
         plt.title(f'Rasterized Scenario {self.id}')

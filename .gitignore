@@ -3,6 +3,8 @@ data
 **/map_files
 **/test_data
 **/.idea
+**/model_storage
+**/storage
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
