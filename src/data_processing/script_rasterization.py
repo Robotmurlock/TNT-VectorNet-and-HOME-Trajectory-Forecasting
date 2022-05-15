@@ -1,8 +1,13 @@
 import os
+from pathlib import Path
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
+
+import cv2
 import numpy as np
 from argoverse.map_representation.map_api import ArgoverseMap
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from utils import steps, image_processing
 import configparser
@@ -10,6 +15,37 @@ from datasets.data_models import ScenarioData, RectangleBox, RasterScenarioData
 
 
 logger = logging.getLogger('DataRasterization')
+
+
+def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox) -> np.ndarray:
+    """
+    Pads driveable area by view
+
+    Args:
+        da_map: Driveable Area Map
+        view: Agent View
+
+    Returns: Padded Agent driveable area (by view)
+    """
+    # TODO: fix left-up, right-bottom mix
+    da_raster = da_map[np.newaxis, view.left:view.right, view.up:view.bottom].copy()
+    padsize_up = max(-view.left, 0)
+    if padsize_up > 0:
+        pad_up = np.zeros(shape=(1, padsize_up, da_raster.shape[2]))
+        da_raster = np.concatenate([pad_up, da_raster], axis=1)
+    padsize_down = max(view.right-da_map.shape[0], 0)
+    if padsize_down > 0:
+        pad_down = np.zeros(shape=(1, padsize_down, da_raster.shape[2]))
+        da_raster = np.concatenate([da_raster, pad_down], axis=1)
+    padsize_left = max(-view.up, 0)
+    if padsize_left > 0:
+        pad_left = np.zeros(shape=(1, da_raster.shape[1], padsize_left))
+        da_raster = np.concatenate([pad_left, da_raster], axis=2)
+    padsize_right = max(view.bottom-da_map.shape[1], 0)
+    if padsize_right > 0:
+        pad_right = np.zeros(shape=(1, da_raster.shape[1], padsize_right))
+        da_raster = np.concatenate([da_raster, pad_right], axis=2)
+    return da_raster
 
 
 def rasterize_agent_trajectory(
@@ -28,7 +64,7 @@ def rasterize_agent_trajectory(
 
     Returns: Rasterized agent trajectory
     """
-    rasterized_agent_trajectory = np.zeros(shape=(agent_traj_hist.shape[0], view.height, view.width))
+    rasterized_agent_trajectory = np.zeros(shape=(1, view.height, view.width))
     o_halfheight, o_halfwidth = object_shape[0] // 2, object_shape[1] // 2  # distance between object center and its borders
     v_halfheight, v_halfwidth = view.height // 2, view.width // 2  # distance between view center and its borders
 
@@ -47,9 +83,9 @@ def rasterize_agent_trajectory(
         # All coordinates are relative to agent center (view center) position
         up, bottom = v_halfheight + x - o_halfheight, v_halfheight + x + o_halfheight
         left, right = v_halfwidth + y - o_halfwidth, v_halfwidth + y + o_halfwidth
-        rasterized_agent_trajectory[timestamp_index, up:bottom, left:right] = 1
+        rasterized_agent_trajectory[0, up:bottom, left:right] = 1
 
-    expected_shape = (agent_traj_hist.shape[0], view.height, view.width)
+    expected_shape = (1, view.height, view.width)
     assert expected_shape == rasterized_agent_trajectory.shape, \
         f'Wrong shape: Expetced {expected_shape} but found {rasterized_agent_trajectory.shape}'
 
@@ -72,7 +108,7 @@ def rasterize_object_trajectories(
 
     Returns: Rasterized object trajectoris
     """
-    rasterized_objects_trajectory = np.zeros(shape=(objects_traj_hists.shape[1], view.height, view.width))
+    rasterized_objects_trajectory = np.zeros(shape=(1, view.height, view.width))
     o_halfheight, o_halfwidth = object_shape[0] // 2, object_shape[1] // 2  # distance between object center and its borders
     v_halfheight, v_halfwidth = view.height // 2, view.width // 2  # distance between view center and its borders
 
@@ -90,9 +126,9 @@ def rasterize_object_trajectories(
             # Same as for `rasterize_object_trajectories`
             up, bottom = v_halfheight + x - o_halfheight, v_halfheight + x + o_halfheight
             left, right = v_halfwidth + y - o_halfwidth, v_halfwidth + y + o_halfwidth
-            rasterized_objects_trajectory[timestamp_index, up:bottom, left:right] = 1
+            rasterized_objects_trajectory[0, up:bottom, left:right] = 1
 
-    expected_shape = (objects_traj_hists.shape[1], view.height, view.width)
+    expected_shape = (1, view.height, view.width)
     assert expected_shape == rasterized_objects_trajectory.shape, \
         f'Wrong shape: Expetced {expected_shape} but found {rasterized_objects_trajectory.shape}'
 
@@ -180,43 +216,71 @@ def rasterize_candidate_centerlines(
     return rasterized_candidate_centerlines
 
 
-def create_heatmap(agent_traj_gt: np.ndarray, view: RectangleBox, kernel_size: int, sigma: int) -> np.ndarray:
+def create_heatmap(
+    agent_traj_gt: np.ndarray,
+    driveable_area: np.ndarray,
+    view: RectangleBox,
+    kernel_size: int,
+    sigma: int,
+    object_shape: List[int]
+) -> np.ndarray:
     """
     Creates ground truth heatmap by encoding by applying guass kernerl on ground truth location of last agent point in
     ground truth trajectory
 
     Args:
         agent_traj_gt: Ground truth trajectory
+        driveable_area: Driveable area (probability is 0 in non-driveable areas)
         view: view bounding box
         kernel_size: Gauss kernel size
         sigma: Gauss kernel sigma
+        object_shape: Agent object shape
 
     Returns: Ground Truth Heatmap
     """
     heatmap = np.zeros(shape=(view.height, view.width))
     v_halfheight, v_halfwidth = view.height // 2, view.width // 2
+    o_halfheight, o_halfwidth = object_shape[0] // 2, object_shape[1] // 2  # distance between object center and its borders
+
+    # Add agent rectangle at position
+    y, x = [int(x) for x in agent_traj_gt[-1]]
+    y_center, x_center = v_halfheight + y, v_halfwidth + x
+    up, bottom = x_center - o_halfheight, x_center + o_halfheight + 1
+    left, right = y_center - o_halfwidth, y_center + o_halfwidth + 1
+    heatmap[up:bottom, left:right] = 1
+
+    # Apply gaussian kernel
     gaussian_filter = image_processing.create_gauss_kernel(kernel_size, sigma=sigma)
     kernel_halfsize = kernel_size // 2
     gaussian_filter = gaussian_filter * (1 / gaussian_filter[kernel_halfsize, kernel_halfsize])
+    heatmap = cv2.filter2D(heatmap, -1, gaussian_filter)
 
-    y, x = [int(x) for x in agent_traj_gt[-1]]
-    y_center, x_center = v_halfheight + y, v_halfwidth + x
-    up, bottom = x_center - kernel_halfsize, x_center + kernel_halfsize + 1
-    left, right = y_center - kernel_halfsize, y_center + kernel_halfsize + 1
-
-    heatmap[up:bottom, left:right] = np.maximum(heatmap[up:bottom, left:right], gaussian_filter)
+    heatmap = heatmap * driveable_area[0]  # Set probability to 0 on in non-driveable area
 
     return heatmap
 
 
+def plot_all_feature_maps(rasterized_features: np.ndarray, path: str, fig: Optional[plt.Figure] = None) -> None:
+    if fig is None:
+        fig = plt.figure(figsize=(14, 10))
+    else:
+        fig.clf()
+
+    Path(path).mkdir(parents=True, exist_ok=True)
+    for feature_index in range(rasterized_features.shape[0]):
+        plt.imshow(rasterized_features[feature_index], origin='lower', cmap='gray')
+        fig.savefig(os.path.join(path, f'{feature_index:02d}.png'))
+
+
 def run(config: configparser.GlobalConfig):
-    scenario_path = os.path.join(steps.SOURCE_PATH, config.data_process_rasterization.input_path)
+    dpr_config = config.raster.data_process
+    scenario_path = os.path.join(steps.SOURCE_PATH, dpr_config.input_path)
     scenario_paths = [os.path.join(scenario_path, dirname) for dirname in os.listdir(scenario_path)]
-    output_path = os.path.join(steps.SOURCE_PATH, config.data_process_rasterization.output_path)
+    output_path = os.path.join(steps.SOURCE_PATH, dpr_config.output_path)
+    completed_scenarios = set(os.listdir(output_path) if os.path.exists(output_path) else [])
 
     scenarios = [ScenarioData.load(path) for path in scenario_paths]
     logger.info(f'Found {len(scenarios)} scenarios.')
-    dpr_config = config.data_process_rasterization
 
     avm = ArgoverseMap()
     city_da_cache: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
@@ -224,9 +288,13 @@ def run(config: configparser.GlobalConfig):
     fig = None
 
     logger.info('Started datasets processing.')
-    for scenario in scenarios:
+    for scenario in tqdm(scenarios):
+        if scenario.dirname in completed_scenarios:
+            logger.debug(f'Already processed "{scenario.dirname}".')
+            continue
+
         if scenario.city not in city_da_cache:
-            logging.debug(f'Loaded drivable area for "{scenario.city}".')
+            logger.debug(f'Loaded drivable area for "{scenario.city}".')
             city_da_cache[scenario.city] = avm.get_rasterized_driveable_area(scenario.city)
 
         c_y, c_x = int(scenario.center_point[0]), int(scenario.center_point[1])
@@ -241,7 +309,7 @@ def run(config: configparser.GlobalConfig):
         )
         view_normalized = view.move(-c_y, -c_x)
 
-        da_raster = city_da_cache[scenario.city][0][np.newaxis, view.left:view.right, view.up:view.bottom]  # driveable area
+        da_raster = form_driveable_area_raster(da_map=city_da_cache[scenario.city][0], view=view)  # driveable area
 
         agent_trajectory_raster = rasterize_agent_trajectory(
             agent_traj_hist=scenario.agent_traj_hist,
@@ -270,9 +338,11 @@ def run(config: configparser.GlobalConfig):
 
         heatmap = create_heatmap(
             agent_traj_gt=scenario.agent_traj_gt,
+            driveable_area=da_raster,
             view=view_normalized,
             kernel_size=dpr_config.parameters.gauss_kernel_size,
-            sigma=dpr_config.parameters.gauss_kernel_sigma)
+            sigma=dpr_config.parameters.gauss_kernel_sigma,
+            object_shape=dpr_config.parameters.object_shape)
 
         raster_scenario = RasterScenarioData(
             id=scenario.id,
@@ -285,11 +355,18 @@ def run(config: configparser.GlobalConfig):
             raster_features=rasterized_features,
             heatmap=heatmap)
 
+        raster_scenario.save(output_path)
         if dpr_config.visualize:
             logger.debug(f'Visualizing data for scenarion "{scenario.dirname}"')
-            raster_scenario.save(output_path)
             fig = raster_scenario.visualize(fig)
             fig.savefig(os.path.join(output_path, raster_scenario.dirname, 'rasterized_scenario.png'))
+            fig.clf()
+
+        if dpr_config.debug_visualize:
+            plot_all_feature_maps(
+                rasterized_features=rasterized_features,
+                path=os.path.join(output_path, raster_scenario.dirname, 'debug'),
+                fig=fig)
 
     logger.info('Finished rasterization!')
 

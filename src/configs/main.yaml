@@ -1,0 +1,37 @@
+log:
+  level: 'INFO'
+global_parameters:
+  trajectory_history_window_length: 20
+  trajectory_future_window_length: 30
+data_process:
+  input_path: '../sample1/train/sample1/'
+  output_path: '../storage/internal/'
+  visualize: True
+  parameters:
+    trajectory_min_history_window_length: 5
+    object_trajectory_min_history_window_length: 5
+    object_trajectory_min_future_window_length: 3
+    object_distance_threshold: 100
+    max_centerline_distance: 5
+    add_neighboring_lanes: True
+data_process_rasterization:
+  input_path: 'test_data/internal'
+  output_path: 'test_data/internal_rasterized'
+  visualize: True
+  debug_visualize: True
+  parameters:
+    agent_view_window_size: 224
+    object_shape: [6, 6]
+    centerline_point_shape: [6, 6]
+    gauss_kernel_size: 25
+    gauss_kernel_sigma: 4
+model:
+  name: 'constant_velocity'
+  config_path: 'configs/model_config.yaml'
+train:
+  input_path: 'test_data/internal_rasterized'
+  output_path: 'model_storage/heatmap'
+evaluation:
+  input_path: 'test_data/internal'
+  output_path: 'test_data/result'
+  visualize: True

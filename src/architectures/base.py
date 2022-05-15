@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from typing import Tuple
+from typing import Tuple, Union
 
 
 class BaseModel(nn.Module):
