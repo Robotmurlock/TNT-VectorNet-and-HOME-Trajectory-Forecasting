@@ -8,7 +8,6 @@ from tqdm import tqdm
 from utils import steps, trajectories, lists, time
 from data_processing import exceptions
 from datasets.data_models.scenario import ScenarioData
-from data_processing import data_process_utils
 
 import configparser
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
@@ -77,7 +76,7 @@ def process_agent_data(
         logger.debug(f'Padded {n_missing_points} on agent history trajectory.')
 
     # approximate agent speed
-    agent_speed = data_process_utils.approximate_agent_speed(agent_traj_hist)
+    agent_speed = trajectories.approximate_trajectory_speed(agent_traj_hist, mask_index=3)
     logger.debug(f'Agent speed: ({agent_speed[0]}, {agent_speed[1]})')
 
     # Asserts
@@ -380,6 +379,32 @@ def find_and_process_centerline_features(
     return centerlines
 
 
+def calculate_point_variance(
+    agent_traj_hist: np.ndarray,
+    objects_traj_hists: np.ndarray,
+    lane_features: np.ndarray,
+    centerline_candidate_features: np.ndarray
+):
+    """
+    Calculates variance of distances of all points on scenario
+
+    Args:
+        agent_traj_hist: Agent Trajectory History
+        objects_traj_hists: Objects Trajectory History
+        lane_features: Lane segments
+        centerline_candidate_features: Candidate lanes
+
+    Returns: Variance of distances of all points on scenario
+    """
+    agent_points = agent_traj_hist[:, :2]
+    objects_points = objects_traj_hists[:, :, :2].reshape(-1, 2)
+    lane_points = lane_features[:, :, :2].reshape(-1, 2)
+    centerline_points = centerline_candidate_features[:, :, :2].reshape(-1, 2)
+    points = np.vstack([agent_points, objects_points, lane_points, centerline_points])
+    distances = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2)
+    return np.var(distances)
+
+
 @time.timeit
 def run(config: configparser.GlobalConfig):
     """
@@ -396,8 +421,10 @@ def run(config: configparser.GlobalConfig):
 
     avfl = ArgoverseForecastingLoader(dataset_path)
     avm = ArgoverseMap()
-    fig = None  # figure for visualization (optional usage)
+    fig = None  # figure for visualization_backup (optional usage)
 
+    total_variance = 0.0
+    total_scenarios = 0
     logger.info('Started datasets processing.')
     for data in tqdm(avfl, total=len(avfl)):
         sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
@@ -409,6 +436,7 @@ def run(config: configparser.GlobalConfig):
         logger.debug(f'Processing sequence "{sequence_fullname}"...')
 
         try:
+            # Extract features
             agent_traj_hist, agent_traj_gt, center_point, agent_speed = process_agent_data(
                 df=data.seq_df,
                 trajectory_history_window_length=config.global_parameters.trajectory_history_window_length,
@@ -448,6 +476,12 @@ def run(config: configparser.GlobalConfig):
                 max_centerline_distance=parameters.max_centerline_distance
             )
 
+            # Update variance stats
+            variance = calculate_point_variance(agent_traj_hist, objects_traj_hists, lane_features, centerline_candidate_features)
+            total_variance += variance
+            total_scenarios += 1
+            logger.debug(f'Variance: {variance:.2f}')
+
             scenario = ScenarioData(
                 id=sequence_name,
                 city=data.city,
@@ -468,6 +502,11 @@ def run(config: configparser.GlobalConfig):
 
         except exceptions.DataProcessException as e:
             logger.warning(f'Skipped "{sequence_name}" sequence! Error: "{e}"')
+
+    # Assumptions: All Scenarios points are independent => global variance equals sum of all scenario variances
+    global_variance = total_variance / total_scenarios
+    global_std = np.sqrt(global_variance)
+    logger.info(f'Global Standard Deviation: {global_std:.2f}')
 
 
 if __name__ == '__main__':
