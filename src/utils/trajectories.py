@@ -1,6 +1,6 @@
 import numpy as np
 import enum
-from typing import Tuple
+from typing import Tuple, Optional
 
 
 class PadType(enum.Enum):
@@ -27,7 +27,7 @@ def pad_trajectory(traj: np.ndarray, length: int, pad_type: PadType) -> Tuple[np
     return np.hstack([traj, padding_mask]), n_missing_points
 
 
-def normalize_polyline(polyline: np.ndarray, last_index: int) -> np.ndarray:
+def normalize_polyline_log1p(polyline: np.ndarray, last_index: int) -> np.ndarray:
     """
     Normalizes trajectory using formula: sgn(x) * log(1+|x|)
 
@@ -42,7 +42,7 @@ def normalize_polyline(polyline: np.ndarray, last_index: int) -> np.ndarray:
     return polyline
 
 
-def denormalize_polyline(polyline: np.ndarray, last_index: int) -> np.ndarray:
+def denormalize_polyline_log1p(polyline: np.ndarray, last_index: int) -> np.ndarray:
     """
     Denormalizes trajectory using formula: sgn(x) * (e^|x|-1)
 
@@ -55,3 +55,56 @@ def denormalize_polyline(polyline: np.ndarray, last_index: int) -> np.ndarray:
     signs = np.sign(polyline[..., :last_index])
     polyline[..., :last_index] = signs * (np.exp(np.abs(polyline[..., :last_index])) - 1)
     return polyline
+
+
+def normalize_polyline(polyline: np.ndarray, last_index: int, sigma: float) -> np.ndarray:
+    """
+    Normalizes trajectory using formula: x / sigma
+
+    Args:
+        polyline: Polyline
+        last_index: Last index to normalize
+        sigma: Sigma value
+
+    Returns: Normalized polyline
+    """
+    polyline[..., :last_index] = polyline[..., :last_index] / sigma
+    return polyline
+
+
+def denormalize_polyline(polyline: np.ndarray, last_index: int, sigma: float) -> np.ndarray:
+    """
+    Denormalizes trajectory using formula: x * sigma
+
+    Args:
+        polyline: Normalized polyline
+        last_index: Last index to denormalize
+        sigma: Sigma value
+
+    Returns: Denormalized polyline
+    """
+    polyline[..., :last_index] = polyline[..., :last_index] * sigma
+    return polyline
+
+
+def approximate_trajectory_speed(trajectory: np.ndarray, absolute: bool = True, mask_index: Optional[int] = None) -> np.ndarray:
+    """
+    Approximates trajectory speed from history trajectory
+
+    Args:
+        trajectory: history trajectory
+        absolute: Return absolute value
+        mask_index: Mask index position
+
+    Returns: speed
+    """
+    next_obs = trajectory[1:, :2]
+    prev_obs = trajectory[:-1, :2]
+    diffs = next_obs - prev_obs
+    n_points = trajectory.shape[0] if mask_index is None else trajectory[:, mask_index].sum()
+    speed = np.sum(diffs, axis=0) / n_points
+    speed = speed if not absolute else np.abs(speed)
+
+    assert speed.shape == (2,), f'Wrong shape: Expetced {(2,)} but found {speed.shape}'
+    return speed
+

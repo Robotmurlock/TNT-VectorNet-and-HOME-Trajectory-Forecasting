@@ -3,7 +3,6 @@ from architectures.components import CNNBlock, TransposeCNNBlock
 import torch
 import torch.nn as nn
 from typing import Tuple
-import math
 
 
 class RasterEncoder(nn.Module):

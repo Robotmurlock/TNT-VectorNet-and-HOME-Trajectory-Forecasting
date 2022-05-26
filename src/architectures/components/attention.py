@@ -5,6 +5,13 @@ import math
 
 class SelfAttention(nn.Module):
     def __init__(self, in_features: int, projected_features: int):
+        """
+        Self attention layer
+
+        Args:
+            in_features: Number of input features
+            projected_features: Number of features after projection (also output features)
+        """
         super(SelfAttention, self).__init__()
         self._d_scale = math.sqrt(projected_features)
         self._q_proj = nn.Linear(in_features, projected_features)

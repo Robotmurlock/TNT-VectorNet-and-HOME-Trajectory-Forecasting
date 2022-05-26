@@ -1,0 +1,4 @@
+from architectures.vectornet.anchor_generator import AnchorGenerator
+from architectures.vectornet.context import VectorNet
+from architectures.vectornet.loss import AnchorsLoss
+from architectures.vectornet.trajectory_forecaster import TrajectoryForecaster
