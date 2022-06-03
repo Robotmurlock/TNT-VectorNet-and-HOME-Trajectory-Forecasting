@@ -5,7 +5,7 @@ import configparser
 from utils import steps
 from datasets.vectornet_dataset import VectorNetScenarioDataset
 from datasets.data_models import GraphScenarioData
-from architectures.vectornet import AnchorsLoss, TargetGenerator, TrajectoryForecaster, ForecastingLoss
+from architectures.vectornet import TargetsLoss, TargetGenerator, TrajectoryForecaster, ForecastingLoss
 
 from torch import optim
 import torch
@@ -26,7 +26,7 @@ def run(config: configparser.GlobalConfig):
     forecaster = TrajectoryForecaster(n_features=16, trajectory_length=config.global_parameters.trajectory_future_window_length).to(device)
 
     # Loss functions
-    ag_criteria = AnchorsLoss(delta=train_config.parameters.huber_delta)
+    ag_criteria = TargetsLoss(delta=train_config.parameters.huber_delta)
     tf_criteria = ForecastingLoss(delta=train_config.parameters.huber_delta)
 
     # Optimizers
@@ -64,7 +64,7 @@ def run(config: configparser.GlobalConfig):
 
             # loss
             f_huber_loss = tf_criteria(forecasted_trajectories, gt_traj)
-            all_loss = 0.1*ag_ce_loss + ag_huber_loss + f_huber_loss
+            all_loss = 0.3*ag_ce_loss + 0.2*ag_huber_loss + 1.0*f_huber_loss
             all_loss.backward()
             ag_optimizer.step()
             f_optimizer.step()

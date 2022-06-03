@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from typing import Tuple
 
 
-class AnchorsLoss(nn.Module):
+class TargetsLoss(nn.Module):
     def __init__(self, alpha: float = 1.0, delta: float = 0.16):
-        super(AnchorsLoss, self).__init__()
+        super(TargetsLoss, self).__init__()
         self.alpha = alpha
         self._ce = nn.CrossEntropyLoss()
         self._huber = nn.HuberLoss(delta=delta)
@@ -53,12 +53,20 @@ class ForecastingLoss(nn.Module):
 
 
 def main():
-    criteria = AnchorsLoss()
+    # Test targets loss
+    t_criteria = TargetsLoss()
     anchors = torch.randn(1, 4, 2)
     confidences = torch.randn(1, 4)
     y = torch.randn(1, 1, 2)
 
-    print(criteria(anchors, confidences, y))
+    print(t_criteria(anchors, confidences, y))
+
+    # Test forecasting loss
+    f_criteria = ForecastingLoss()
+    forecasts = torch.randn(10, 5, 2)
+    ground_truth = torch.randn(5, 2)
+
+    print(f_criteria(forecasts, ground_truth))
 
 
 if __name__ == '__main__':
