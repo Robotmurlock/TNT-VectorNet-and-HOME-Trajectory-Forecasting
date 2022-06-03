@@ -48,6 +48,7 @@ class ModelConfig:
 class EvaluationConfig:
     input_path: str
     output_path: str
+    model_path: str
     visualize: bool
 
 

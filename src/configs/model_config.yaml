@@ -1,1 +1,4 @@
-prediction_length: 30
+polyline_features: 9
+trajectory_length: 30
+n_trajectories: 10
+device: 'cuda'

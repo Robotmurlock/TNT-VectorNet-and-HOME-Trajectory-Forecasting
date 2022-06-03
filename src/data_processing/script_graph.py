@@ -12,7 +12,7 @@ from datasets.data_models import ScenarioData, GraphScenarioData, ObjectType
 logger = logging.getLogger('DataGraph')
 
 
-def create_polyline(polyline_data: np.ndarray, object_type: ObjectType) -> np.ndarray:
+def create_polyline(polyline_data: np.ndarray, object_type: ObjectType, max_segments: int) -> np.ndarray:
     """
     Creates polyline from trajectory data
     Dimension - Polyline dimension is equal to number of polyline edges
@@ -21,6 +21,7 @@ def create_polyline(polyline_data: np.ndarray, object_type: ObjectType) -> np.nd
     Args:
         polyline_data: Trajectory
         object_type: ObjectType
+        max_segments: Max polyline segments
 
     Returns: Trajectory transformed into a polyline
     """
@@ -40,28 +41,31 @@ def create_polyline(polyline_data: np.ndarray, object_type: ObjectType) -> np.nd
         last_point = point
 
     polyline = np.stack(polyline_edges_list)
-    return polyline
+    return polyline[-max_segments:, :]
 
 
-def create_polylines(polylines_data: np.ndarray, object_type: ObjectType) -> List[np.ndarray]:
+def create_polylines(polylines_data: np.ndarray, object_type: ObjectType, max_segments: int) -> List[np.ndarray]:
     """
     Creates list of polylines from stacked array of polylines
 
     Args:
         polylines_data: Stacked trajectories
         object_type: Trajectories object type
+        max_segments: Max polyline segmets
 
     Returns: List of polylines
     """
-    return [create_polyline(polylines_data[object_index], object_type) for object_index in range(polylines_data.shape[0])]
+    return [create_polyline(polylines_data[object_index], object_type, max_segments)
+            for object_index in range(polylines_data.shape[0])]
 
 
-def create_lane_polyline(lane_feature: np.ndarray) -> np.ndarray:
+def create_lane_polyline(lane_feature: np.ndarray, max_segments: int) -> np.ndarray:
     """
     Creates lane polyline
 
     Args:
         lane_feature: Lane initial features
+        max_segments: Max polyline segmets
 
     Returns: Lane Polyline
     """
@@ -75,19 +79,21 @@ def create_lane_polyline(lane_feature: np.ndarray) -> np.ndarray:
         last_point = point
 
     polyline = np.stack(polyline_edges_list)
-    return polyline
+    return polyline[-max_segments:, :]
 
 
-def create_lane_polylines(lane_features: np.ndarray) -> List[np.ndarray]:
+def create_lane_polylines(lane_features: np.ndarray, max_segments: int) -> List[np.ndarray]:
     """
     Creates lane polylines from stacked lane features
 
     Args:
         lane_features: Lane features (lanes with features)
+        max_segments: Max polyline segmets
 
     Returns: List of polylines for each lane segment
     """
-    return [create_lane_polyline(lane_features[object_index]) for object_index in range(lane_features.shape[0])]
+    return [create_lane_polyline(lane_features[object_index], max_segments)
+            for object_index in range(lane_features.shape[0])]
 
 
 def sample_velocities(raw_velocity: np.ndarray, intensity: List[float], rotations: List[float]) -> List[np.ndarray]:
@@ -191,6 +197,18 @@ def anchor_min_error(anchors: np.ndarray, ground_truth: np.ndarray) -> np.ndarra
     return np.min(distances)
 
 
+def polyline_distance_from_center(polyline: np.ndarray) -> np.ndarray:
+    """
+    Calculates distance of all polyline from center (agent)
+
+    Args:
+        polyline: Polyline features
+
+    Returns: Distance from center point
+    """
+    return np.mean(np.sqrt(polyline[:, 0] ** 2 + polyline[:, 1] ** 2))
+
+
 def run(config: configparser.GlobalConfig):
     """
     Converts vectorized structured data to vectorized polyline structured data
@@ -205,26 +223,46 @@ def run(config: configparser.GlobalConfig):
     output_path = os.path.join(steps.SOURCE_PATH, dpg_config.output_path)
     completed_scenarios = set(os.listdir(output_path) if os.path.exists(output_path) else [])
 
-    scenarios = [ScenarioData.load(path) for path in scenario_paths]
-    logger.info(f'Found {len(scenarios)} scenarios.')
+    logger.info(f'Found {len(scenario_paths)} scenarios.')
 
     fig = None
     logger.info('Started datasets processing.')
     total_anchor_error = 0.0
     total_scenarios = 0
 
-    for scenario in tqdm(scenarios):
-        scenario: ScenarioData
+    for scenario_path in tqdm(scenario_paths):
+        scenario = ScenarioData.load(scenario_path)
         if scenario.dirname in completed_scenarios:
             logger.debug(f'Already processed "{scenario.dirname}".')
             continue
 
         # create polylines
-        agent_polyline = create_polyline(scenario.agent_traj_hist, ObjectType.AGENT)
-        neighbor_polylines = create_polylines(scenario.objects_traj_hists, ObjectType.NEIGHBOUR)
-        lane_polylines = create_lane_polylines(scenario.lane_features)
-        candidate_polylines = create_polylines(scenario.centerline_candidate_features, ObjectType.CANDIDATE_CENTERLINE)
+        agent_polyline = create_polyline(
+            polyline_data=scenario.agent_traj_hist,
+            object_type=ObjectType.AGENT,
+            max_segments=dpg_config.max_polyline_segments)
+
+        neighbor_polylines = create_polylines(
+            polylines_data=scenario.objects_traj_hists,
+            object_type=ObjectType.NEIGHBOUR,
+            max_segments=dpg_config.max_polyline_segments)
+
+        lane_polylines = create_lane_polylines(
+            lane_features=scenario.lane_features,
+            max_segments=dpg_config.max_polyline_segments)
+
+        candidate_polylines = create_polylines(
+            polylines_data=scenario.centerline_candidate_features,
+            object_type=ObjectType.CANDIDATE_CENTERLINE,
+            max_segments=dpg_config.max_polyline_segments)
+
         polylines = [agent_polyline] + neighbor_polylines + lane_polylines + candidate_polylines
+
+        # Pad all polylines to dimension (20, 9) where last dimension is mask
+        polylines = [trajectories.pad_trajectory(p, dpg_config.max_polyline_segments, trajectories.PadType.PAST)[0]
+                     for p in polylines]
+        polylines = sorted(polylines, key=polyline_distance_from_center)
+        polylines = polylines[:dpg_config.max_polylines]
 
         # create anchors
         anchors = sample_anchor_points(np.vstack(polylines)[:, :2], scenario.agent_traj_hist, scenario.agent_traj_gt.shape[0])

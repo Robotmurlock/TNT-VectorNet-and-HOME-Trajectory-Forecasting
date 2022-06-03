@@ -33,20 +33,24 @@ graph:
   data_process:
     input_path: 'test_data/internal'
     output_path: 'test_data/internal_graph'
+    max_polyline_segments: 20
+    max_polylines: 200
     normalization_parameter: 25.0
     visualize: True
   train:
     input_path: 'test_data/internal_graph'
     output_path: 'model_storage/vectornet'
     parameters:
-      epochs: 1
+      epochs: 1000
       n_targets: 6
       anchor_generator_lr: 0.001
       trajectory_forecaster_lr: 0.001
+      huber_delta: 0.16
 model:
-  name: 'constant_velocity'
+  name: 'vectornet'
   config_path: 'configs/model_config.yaml'
 evaluation:
-  input_path: 'test_data/internal'
+  input_path: 'test_data/internal_graph'
   output_path: 'test_data/result'
+  model_path: 'model_storage/vectornet/model'
   visualize: True

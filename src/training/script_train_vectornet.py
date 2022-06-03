@@ -5,10 +5,9 @@ import configparser
 from utils import steps
 from datasets.vectornet_dataset import VectorNetScenarioDataset
 from datasets.data_models import GraphScenarioData
-from architectures.vectornet import AnchorsLoss, AnchorGenerator, TrajectoryForecaster
+from architectures.vectornet import AnchorsLoss, TargetGenerator, TrajectoryForecaster, ForecastingLoss
 
 from torch import optim
-import torch.nn as nn
 import torch
 import logging
 from tqdm import tqdm
@@ -23,12 +22,12 @@ def run(config: configparser.GlobalConfig):
     dataset = VectorNetScenarioDataset(input_path)
 
     # Models
-    anchor_generator = AnchorGenerator(polyline_features=8).to(device)
+    anchor_generator = TargetGenerator(polyline_features=9, device=device).to(device)
     forecaster = TrajectoryForecaster(n_features=16, trajectory_length=config.global_parameters.trajectory_future_window_length).to(device)
 
     # Loss functions
-    ag_criteria = AnchorsLoss()
-    tf_criteria = nn.MSELoss()  # Todo: Use Huber loss instead
+    ag_criteria = AnchorsLoss(delta=train_config.parameters.huber_delta)
+    tf_criteria = ForecastingLoss(delta=train_config.parameters.huber_delta)
 
     # Optimizers
     ag_optimizer = optim.Adam(params=anchor_generator.parameters(), lr=train_config.parameters.anchor_generator_lr)
@@ -40,21 +39,21 @@ def run(config: configparser.GlobalConfig):
     forecaster.train()
     for epoch in tqdm(range(1, epochs+1)):
         total_loss = 0.0
-        total_ce_loss = 0.0
-        total_mse_loss = 0.0
-        total_forecast_loss = 0.0
+        total_ag_ce_loss = 0.0
+        total_ag_huber_loss = 0.0
+        total_f_huber_loss = 0.0
 
         for data in dataset:
             ag_optimizer.zero_grad()
             f_optimizer.zero_grad()
 
             polylines, anchors, ground_truth, gt_traj = \
-                [d.to(device) for d in data.inputs], data.target_proposals.to(device), \
+                data.inputs.to(device), data.target_proposals.to(device), \
                 data.target_ground_truth.to(device), data.ground_truth_trajectory_difference.to(device)
             features, targets, confidences = anchor_generator(polylines, anchors)
 
             # anchor loss
-            loss, ce_loss, mse_loss = ag_criteria(targets, confidences, ground_truth)
+            loss, ag_ce_loss, ag_huber_loss = ag_criteria(targets, confidences, ground_truth)
 
             # trajectory losses
             filter_indexes = torch.argsort(confidences, descending=True)[:n_targets]
@@ -64,23 +63,27 @@ def run(config: configparser.GlobalConfig):
             forecasted_trajectories = forecaster(filtered_features, ground_truth_expanded)
 
             # loss
-            gt_traj_expanded = gt_traj.unsqueeze(0).expand(n_targets, 30, 2)
-            forecast_loss = tf_criteria(forecasted_trajectories, gt_traj_expanded)
-            all_loss = 0.1*loss + 1.0*forecast_loss
+            f_huber_loss = tf_criteria(forecasted_trajectories, gt_traj)
+            all_loss = 0.1*ag_ce_loss + ag_huber_loss + f_huber_loss
             all_loss.backward()
             ag_optimizer.step()
             f_optimizer.step()
 
             # stats
             total_loss += all_loss.detach().item()
-            total_ce_loss += ce_loss.detach().item()
-            total_mse_loss += mse_loss.detach().item()
-            total_forecast_loss += forecast_loss.detach().item()
+            total_ag_ce_loss += ag_ce_loss.detach().item()
+            total_ag_huber_loss += ag_huber_loss.detach().item()
+            total_f_huber_loss += f_huber_loss.detach().item()
 
-        logging.info(f'[Epoch-{epoch}]: loss={(total_loss / len(dataset)):.4f}, '
-                     f'mse={total_mse_loss / len(dataset):.4f}, '
-                     f'ce={total_ce_loss / len(dataset):.4f}, '
-                     f'fmse={total_forecast_loss / len(dataset):.4f}')
+        logging.info(f'[Epoch-{epoch}]: weighted-loss={(total_loss / len(dataset)):.2f}, '
+                     f'target-huber={total_ag_huber_loss / len(dataset):.6f}, '
+                     f'target-ce={total_ag_ce_loss / len(dataset):.2f}, '
+                     f'traj-huber={total_f_huber_loss / len(dataset):.6f}')
+
+    model_path = os.path.join(steps.SOURCE_PATH, config.graph.train.output_path, 'model')
+    Path(model_path).mkdir(exist_ok=True, parents=True)
+    torch.save(anchor_generator.state_dict(), os.path.join(model_path, 'target_generator.pt'))
+    torch.save(forecaster.state_dict(), os.path.join(model_path, 'forecaster.pt'))
 
     fig = None
     anchor_generator.eval()
@@ -90,7 +93,7 @@ def run(config: configparser.GlobalConfig):
             scenario: GraphScenarioData
 
             polylines, anchors, ground_truth, gt_traj = \
-                [d.to(device) for d in scenario.inputs], scenario.target_proposals.to(device), \
+                scenario.inputs.to(device), scenario.target_proposals.to(device), \
                 scenario.target_ground_truth.to(device), scenario.ground_truth_trajectory_difference.to(device)
             features, targets, confidences = anchor_generator(polylines, anchors)
 
