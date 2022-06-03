@@ -26,8 +26,8 @@ class GraphScenarioData:
         return f'{self.city}_{self.id}'
 
     @property
-    def inputs(self) -> List[torch.Tensor]:
-        return [torch.tensor(polyline, dtype=torch.float32) for polyline in self.polylines]
+    def inputs(self) -> torch.Tensor:
+        return torch.tensor(self.polylines, dtype=torch.float32)
 
     @property
     def ground_truth_trajectory(self) -> torch.Tensor:
@@ -62,18 +62,13 @@ class GraphScenarioData:
             'agent_traj_gt.npy': self.agent_traj_gt,
             'objects_traj_gts.npy': self.objects_traj_gts,
             'anchors.npy': self.anchors,
-            'ground_truth_point.npy': self.ground_truth_point
+            'ground_truth_point.npy': self.ground_truth_point,
+            'polylines.npy': self.polylines
         }
 
         for filename, data in catalog.items():
             filepath = os.path.join(scenario_path, filename)
             np.save(filepath, data)
-
-        polylines_path = os.path.join(scenario_path, 'polylines')
-        Path(polylines_path).mkdir(parents=True, exist_ok=True)
-        for index, p in enumerate(self.polylines):
-            filepath = os.path.join(polylines_path, f'polyline_{index}.npy')
-            np.save(filepath, p)
 
     @classmethod
     def load(cls, path: str) -> 'GraphScenarioData':
@@ -85,7 +80,7 @@ class GraphScenarioData:
 
         Returns: RasterizedScenarioData
         """
-        objects_to_load = ['center_point',  'agent_traj_gt', 'objects_traj_gts', 'anchors', 'ground_truth_point']
+        objects_to_load = ['center_point',  'agent_traj_gt', 'objects_traj_gts', 'anchors', 'ground_truth_point', 'polylines']
         filename = os.path.basename(path)
         sequence_city, sequence_id = filename.split('_')
         catalog = {'city': sequence_city, 'id': sequence_id}
@@ -93,10 +88,6 @@ class GraphScenarioData:
         for object_name in objects_to_load:
             object_path = os.path.join(path, f'{object_name}.npy')
             catalog[object_name] = np.load(object_path)
-
-        polylines_path = os.path.join(path, 'polylines')
-        polylines_filepaths = os.listdir(polylines_path)
-        catalog['polylines'] = [np.load(os.path.join(polylines_path, pfp)) for pfp in polylines_filepaths]
 
         return cls(**catalog)
 
@@ -136,6 +127,12 @@ class GraphScenarioData:
                           color=object_type.color, label=object_type.label, length_includes_head=True,
                           head_width=0.02, head_length=0.02)
 
+        if agent_traj_forecast is not None:
+            for forecast_index in range(agent_traj_forecast.shape[0]):
+                plt.plot(agent_traj_forecast[forecast_index, :, 0], agent_traj_forecast[forecast_index, :, 1],
+                         color='lime', linewidth=5, label='forecast')
+            plt.plot(self.agent_traj_gt[:, 0], self.agent_traj_gt[:, 1], color='darkgreen', linewidth=5, label='ground truth')
+
         # Plot anchor points and ground truth target point
         plt.scatter(self.anchors[:, 0], self.anchors[:, 1], color='purple', label='anchors')
         plt.scatter([self.ground_truth_point[0]], [self.ground_truth_point[1]], color='pink', label='ground truth target', s=100)
@@ -143,12 +140,6 @@ class GraphScenarioData:
         if targets_prediction is not None:
             # Plot prediction target points
             plt.scatter(targets_prediction[:, 0], targets_prediction[:, 1], color='slateblue', label='target predictions', s=100)
-
-        if agent_traj_forecast is not None:
-            for forecast_index in range(agent_traj_forecast.shape[0]):
-                plt.plot(agent_traj_forecast[forecast_index, :, 0], agent_traj_forecast[forecast_index, :, 1],
-                         color='lime', linewidth=5, label='forecast')
-            plt.plot(self.agent_traj_gt[:, 0], self.agent_traj_gt[:, 1], color='darkgreen', linewidth=5, label='ground truth')
 
         # set title and axis info
         plt.title(f'Graph Scenario {self.id}')

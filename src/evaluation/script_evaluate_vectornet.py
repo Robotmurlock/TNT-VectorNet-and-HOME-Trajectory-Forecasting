@@ -4,7 +4,7 @@ import yaml
 import configparser
 from utils import steps
 from evaluation import eval
-from datasets.dataset import ScenarioDataset
+from datasets.vectornet_dataset import VectorNetScenarioDataset
 from architectures.factory import model_factory
 
 
@@ -15,8 +15,14 @@ def run():
         params = yaml.safe_load(stream)
 
     model = model_factory(config.model.name, params=params)
-    dataset = ScenarioDataset(os.path.join(steps.SOURCE_PATH, config.evaluation.input_path))
-    eval.evaluate(model, dataset, os.path.join(steps.SOURCE_PATH, config.evaluation.output_path), visualize=config.evaluation.visualize)
+    model.load_state(os.path.join(steps.SOURCE_PATH, config.evaluation.model_path))
+    dataset = VectorNetScenarioDataset(os.path.join(steps.SOURCE_PATH, config.evaluation.input_path))
+    eval.evaluate(
+        model=model,
+        dataset=dataset,
+        output_path=os.path.join(steps.SOURCE_PATH, config.evaluation.output_path),
+        device='cuda',
+        visualize=config.evaluation.visualize)
 
 
 if __name__ == '__main__':

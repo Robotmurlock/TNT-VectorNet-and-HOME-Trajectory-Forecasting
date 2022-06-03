@@ -5,6 +5,8 @@ from dataclasses import dataclass
 class DataProcessGraphConfig:
     input_path: str
     output_path: str
+    max_polyline_segments: int
+    max_polylines: int
     normalization_parameter: float
     visualize: bool
 
@@ -15,6 +17,7 @@ class GraphTrainConfigParameters:
     n_targets: int
     anchor_generator_lr: float
     trajectory_forecaster_lr: float
+    huber_delta: float
 
 
 @dataclass

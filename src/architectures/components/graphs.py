@@ -9,9 +9,9 @@ class GCN(nn.Module):
         self._layernorm = nn.LayerNorm([hidden_features])
         self._relu = nn.ReLU()
 
-    def forward(self, features: torch.Tensor, laplacian: torch.Tensor) -> torch.Tensor:
+    def forward(self, features: torch.Tensor, adj: torch.Tensor) -> torch.Tensor:
         enc = self._relu(self._layernorm(self._feature_encoding(features)))
-        expanded_laplacian = laplacian.view(1, *laplacian.shape) \
-            .expand(features.shape[0], *laplacian.shape)
-        message = torch.bmm(expanded_laplacian, enc)
+        expanded_laplacian = adj.view(1, *adj.shape) \
+            .expand(features.shape[0], *adj.shape)
+        message = torch.bmm(enc, expanded_laplacian)
         return torch.concat([message, enc], dim=2)
