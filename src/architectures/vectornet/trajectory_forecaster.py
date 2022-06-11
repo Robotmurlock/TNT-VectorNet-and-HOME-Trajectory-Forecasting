@@ -8,15 +8,20 @@ class TrajectoryForecaster(nn.Module):
         self._n_features = n_features
         self._trajectory_length = trajectory_length
 
-        self._linear = nn.Linear(n_features + 2, 64)
-        self._l_trajectory_forecast = nn.Linear(66, 2 * self._trajectory_length)
+        self._linear = nn.Linear(n_features + 2, 128)
+        self._l_trajectory_forecast = nn.Linear(130, 2 * self._trajectory_length)
 
-        self._bn1 = nn.BatchNorm1d(64)
+        self._ln1 = nn.LayerNorm(128)
         self._lrelu = nn.LeakyReLU(0.1)
 
     def forward(self, features: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        inputs = torch.concat([features, targets], dim=-1)
-        out = self._lrelu(self._bn1(self._linear(inputs)))
+        n_targets = targets.shape[0]
+
+        # merge features with targets
+        expanded_features = features.unsqueeze(0).repeat(n_targets, 1)
+        inputs = torch.concat([expanded_features, targets], dim=-1)
+
+        out = self._lrelu(self._ln1(self._linear(inputs)))
         out = torch.concat([out, targets], dim=-1)  # skip connection
 
         trajectories = self._l_trajectory_forecast(out)
@@ -26,7 +31,7 @@ class TrajectoryForecaster(nn.Module):
 
 def test():
     forecaster = TrajectoryForecaster(16, 10)
-    features = torch.randn(6, 16)
+    features = torch.randn(16)
     targets = torch.randn(6, 2)
     trajectories = forecaster(features, targets)
     print(trajectories.shape)

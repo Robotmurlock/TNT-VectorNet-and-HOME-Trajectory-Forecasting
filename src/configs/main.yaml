@@ -16,8 +16,8 @@ data_process:
     add_neighboring_lanes: True
 raster:
   data_process:
-    input_path: 'test_data/internal'
-    output_path: 'test_data/internal_graph'
+    input_path: '../storage/internal'
+    output_path: '../storage/internal_graph'
     visualize: True
     debug_visualize: True
     parameters:
@@ -27,26 +27,33 @@ raster:
       gauss_kernel_size: 25
       gauss_kernel_sigma: 4
   train:
-    input_path: 'test_data/internal_rasterized'
+    input_path: '../storage/internal_rasterized'
     output_path: 'model_storage/heatmap'
 graph:
   data_process:
     input_path: '../storage/internal'
     output_path: '../storage/internal_graph'
+    max_polyline_segments: 20
+    max_polylines: 200
     normalization_parameter: 25.0
     visualize: True
   train:
     input_path: '../storage/internal_graph'
     output_path: '../storage/model_storage/vectornet'
+    visualize: False
     parameters:
       epochs: 10
       n_targets: 6
-      anchor_generator_lr: 0.001
+      anchor_generator_lr: 0.0001
+      anchor_generator_sched_step: 5
+      anchor_generator_sched_gamma: 0.1
       trajectory_forecaster_lr: 0.001
+      huber_delta: 0.16
 model:
   name: 'constant_velocity'
   config_path: 'configs/model_config.yaml'
 evaluation:
-  input_path: 'test_data/internal'
-  output_path: 'test_data/result'
+  input_path: '../storage/internal'
+  output_path: '../storage/result'
+  model_path: '../storage/model_storage/vectornet/model'
   visualize: True

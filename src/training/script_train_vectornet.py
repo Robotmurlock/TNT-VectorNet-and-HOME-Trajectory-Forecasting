@@ -19,11 +19,11 @@ def run(config: configparser.GlobalConfig):
     train_config = config.graph.train
     input_path = os.path.join(steps.SOURCE_PATH, config.graph.train.input_path)
 
-    dataset = VectorNetScenarioDataset(input_path)
+    dataset = VectorNetScenarioDataset(input_path, augment=True)
 
     # Models
     anchor_generator = TargetGenerator(polyline_features=9, device=device).to(device)
-    forecaster = TrajectoryForecaster(n_features=16, trajectory_length=config.global_parameters.trajectory_future_window_length).to(device)
+    forecaster = TrajectoryForecaster(n_features=256, trajectory_length=config.global_parameters.trajectory_future_window_length).to(device)
 
     # Loss functions
     ag_criteria = TargetsLoss(delta=train_config.parameters.huber_delta)
@@ -31,6 +31,8 @@ def run(config: configparser.GlobalConfig):
 
     # Optimizers
     ag_optimizer = optim.Adam(params=anchor_generator.parameters(), lr=train_config.parameters.anchor_generator_lr)
+    ag_scheduler = optim.lr_scheduler.StepLR(ag_optimizer, step_size=train_config.parameters.anchor_generator_sched_step,
+                                             gamma=train_config.parameters.anchor_generator_sched_gamma)
     f_optimizer = optim.Adam(params=forecaster.parameters(), lr=train_config.parameters.trajectory_forecaster_lr)
     epochs = train_config.parameters.epochs
     n_targets = train_config.parameters.n_targets
@@ -56,15 +58,13 @@ def run(config: configparser.GlobalConfig):
             loss, ag_ce_loss, ag_huber_loss = ag_criteria(targets, confidences, ground_truth)
 
             # trajectory losses
-            filter_indexes = torch.argsort(confidences, descending=True)[:n_targets]
-            filtered_features = features[filter_indexes]
             # Using ground truth instead targets during training
             ground_truth_expanded = ground_truth.unsqueeze(0).expand(n_targets, 2)
-            forecasted_trajectories = forecaster(filtered_features, ground_truth_expanded)
+            forecasted_trajectories = forecaster(features, ground_truth_expanded)
 
             # loss
             f_huber_loss = tf_criteria(forecasted_trajectories, gt_traj)
-            all_loss = 0.3*ag_ce_loss + 0.2*ag_huber_loss + 1.0*f_huber_loss
+            all_loss = 1.2*ag_ce_loss + 0.15*ag_huber_loss + 0.5*f_huber_loss
             all_loss.backward()
             ag_optimizer.step()
             f_optimizer.step()
@@ -75,6 +75,9 @@ def run(config: configparser.GlobalConfig):
             total_ag_huber_loss += ag_huber_loss.detach().item()
             total_f_huber_loss += f_huber_loss.detach().item()
 
+        # schedulers
+        ag_scheduler.step()
+
         logging.info(f'[Epoch-{epoch}]: weighted-loss={(total_loss / len(dataset)):.2f}, '
                      f'target-huber={total_ag_huber_loss / len(dataset):.6f}, '
                      f'target-ce={total_ag_ce_loss / len(dataset):.2f}, '
@@ -84,6 +87,9 @@ def run(config: configparser.GlobalConfig):
     Path(model_path).mkdir(exist_ok=True, parents=True)
     torch.save(anchor_generator.state_dict(), os.path.join(model_path, 'target_generator.pt'))
     torch.save(forecaster.state_dict(), os.path.join(model_path, 'forecaster.pt'))
+
+    if not train_config.visualize:
+        return
 
     fig = None
     anchor_generator.eval()
@@ -99,8 +105,7 @@ def run(config: configparser.GlobalConfig):
 
             filter_indexes = torch.argsort(confidences, descending=True)[:n_targets]
             filtered_targets = targets[filter_indexes]
-            filtered_features = features[filter_indexes]
-            forecasted_trajectories = forecaster(filtered_features, filtered_targets)
+            forecasted_trajectories = forecaster(features, filtered_targets)
 
             scenario_viz_path = os.path.join(steps.SOURCE_PATH, config.graph.train.output_path, 'visualization')
             Path(scenario_viz_path).mkdir(parents=True, exist_ok=True)

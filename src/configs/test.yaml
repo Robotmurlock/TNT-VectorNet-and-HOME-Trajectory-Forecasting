@@ -40,10 +40,13 @@ graph:
   train:
     input_path: 'test_data/internal_graph'
     output_path: 'model_storage/vectornet'
+    visualize: True
     parameters:
-      epochs: 1000
+      epochs: 350
       n_targets: 6
-      anchor_generator_lr: 0.001
+      anchor_generator_lr: 0.0001
+      anchor_generator_sched_step: 100
+      anchor_generator_sched_gamma: 0.1
       trajectory_forecaster_lr: 0.001
       huber_delta: 0.16
 model:

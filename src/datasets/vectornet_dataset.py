@@ -5,7 +5,7 @@ from datasets.data_models.graph_scenario import GraphScenarioData
 
 
 class VectorNetScenarioDataset:
-    def __init__(self, path: str):
+    def __init__(self, path: str, augment: bool = False):
         """
         Dataset for loading processed rasterized files
 
@@ -13,6 +13,7 @@ class VectorNetScenarioDataset:
             path: Path to dataset location on local file system
         """
         self.scenario_paths = self._load_scenario_paths(path)
+        self._augment = augment
 
     def _load_scenario_paths(self, path) -> List[str]:
         return [os.path.join(path, filename) for filename in os.listdir(path)]

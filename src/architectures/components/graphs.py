@@ -14,4 +14,5 @@ class GCN(nn.Module):
         expanded_laplacian = adj.view(1, *adj.shape) \
             .expand(features.shape[0], *adj.shape)
         message = torch.bmm(enc, expanded_laplacian)
-        return torch.concat([message, enc], dim=2)
+        aggregated_message = torch.max(message, dim=-2)[0].unsqueeze(-2).expand(*message.shape)
+        return torch.concat([aggregated_message, enc], dim=2)

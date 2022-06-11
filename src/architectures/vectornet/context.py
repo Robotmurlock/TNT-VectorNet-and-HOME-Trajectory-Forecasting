@@ -14,11 +14,11 @@ class VectorNet(nn.Module):
             polyline_features: Number of features per polyline point
         """
         super(VectorNet, self).__init__()
-        self._polyline_encoder = PGN(in_features=polyline_features, n_layers=3, device=device)
+        self._polyline_encoder = PGN(in_features=polyline_features, n_layers=4, device=device)
         self._global = MultiHeadAttention(in_features=self._polyline_encoder.out_features, head_num=12, activation=nn.ReLU())
 
         self._flatten = nn.Flatten(start_dim=0)
-        self._linear = nn.Linear(72, 128)
+        self._linear = nn.Linear(144, 128)
         self._relu = nn.ReLU()
 
     def forward(self, polylines: List[torch.Tensor]) -> torch.Tensor:
