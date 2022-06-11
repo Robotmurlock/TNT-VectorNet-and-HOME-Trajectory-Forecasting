@@ -16,6 +16,8 @@ class GraphTrainConfigParameters:
     epochs: int
     n_targets: int
     anchor_generator_lr: float
+    anchor_generator_sched_step: int
+    anchor_generator_sched_gamma: float
     trajectory_forecaster_lr: float
     huber_delta: float
 
@@ -25,6 +27,7 @@ class GraphTrainConfig:
     input_path: str
     output_path: str
     parameters: GraphTrainConfigParameters
+    visualize: bool
 
 
 @dataclass

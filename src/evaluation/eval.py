@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import json
-from typing import Any, Union
+from typing import Any, Union, Optional
 from tqdm import tqdm
 
 import torch
@@ -10,7 +10,14 @@ from architectures.base import BaseModel
 from evaluation import metrics
 
 
-def evaluate(model: BaseModel, dataset: Any, output_path: str, device: Union[str, torch.device], visualize: bool = False) -> None:
+def evaluate(
+    model: BaseModel,
+    dataset: Any,
+    output_path: str,
+    device: Union[str, torch.device],
+    visualize: bool = False,
+    scale: Optional[float] = None
+) -> None:
     """
     Evaluates model on Argoverse dataset and outputs all metrics in `output_path` with optional visualizations.
     - For global metrics meanADE and meanFDE are used
@@ -22,6 +29,7 @@ def evaluate(model: BaseModel, dataset: Any, output_path: str, device: Union[str
         output_path: Evaluation output path
         device: Device
         visualize: Optionally visualize scenarios with forecasts
+        scale: Scale (optional)
     """
     fig = None
     n_scenarios = len(dataset)
@@ -38,13 +46,19 @@ def evaluate(model: BaseModel, dataset: Any, output_path: str, device: Union[str
             polylines, anchors, _, gt_traj = \
                 scenario.inputs.to(device), scenario.target_proposals.to(device), \
                 scenario.target_ground_truth.to(device), scenario.ground_truth_trajectory_difference.to(device)
-            forecasts, probas = model(polylines, anchors)
+            gt_traj = gt_traj.cumsum(axis=0)  # transform differences to trajectory
+
+            forecasts, probas, targets = model(polylines, anchors)
+            forecasts_scaled = forecasts * scale
+            gt_traj_scaled = gt_traj * scale
 
             # Agent evaluation
-            agent_min_ade, _ = metrics.minADE(forecasts, gt_traj)
-            agent_min_fde, _ = metrics.minFDE(forecasts, gt_traj)
+            agent_min_ade, _ = metrics.minADE(forecasts_scaled, gt_traj_scaled)
+            agent_min_fde, _ = metrics.minFDE(forecasts_scaled, gt_traj_scaled)
             agent_min_ade = agent_min_ade.detach().item()
             agent_min_fde = agent_min_fde.detach().item()
+
+            # Deducing error class
             scenario_metrics['agent'] = {
                 'minADE': agent_min_ade,
                 'minFDE': agent_min_fde
@@ -65,7 +79,9 @@ def evaluate(model: BaseModel, dataset: Any, output_path: str, device: Union[str
                 fig = scenario.visualize(
                     fig=fig,
                     agent_traj_forecast=forecasts.cpu().numpy(),
-                    targets_prediction=anchors.cpu().numpy())
+                    targets_prediction=targets.cpu().numpy(),
+                    scale=scale
+                )
                 fig.savefig(os.path.join(scenario_output_path, 'scenario.png'))
 
         dataset_metrics = {

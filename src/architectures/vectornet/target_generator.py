@@ -15,23 +15,39 @@ class TargetGenerator(nn.Module):
         """
         super(TargetGenerator, self).__init__()
         self._vectornet = VectorNet(polyline_features, device=device)
-        self._batch_norm = nn.BatchNorm1d(2)
+        self._bn_corr1 = nn.BatchNorm1d(128)
+        self._bn_conf1 = nn.BatchNorm1d(128)
 
-        self._linear1 = nn.Linear(128, 600)
-        self._linear2 = nn.Linear(10, 16)
-        self._l_corrections = nn.Linear(16, 2)
-        self._l_confidence = nn.Linear(16, 1)
+        # back
+        self._linear1 = nn.Linear(128, 256)
+        self._linear2 = nn.Linear(258, 64)
+
+        # corrections
+        self._l_corrections1 = nn.Linear(64, 128)
+        self._l_corrections2 = nn.Linear(128, 2)
+
+        # confidences
+        self._l_confidence1 = nn.Linear(64, 128)
+        self._l_confidence2 = nn.Linear(128, 1)
+
         self._relu = nn.ReLU()
 
     def forward(self, inputs: torch.Tensor, anchors: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        features = self._vectornet(inputs).unsqueeze(0)
-        features = self._relu(self._linear1(features)).view(75, 8)
-        features = self._relu(self._linear2(torch.concat([features, anchors], dim=-1)))
+        n_anchors = anchors.shape[0]
 
-        # Outputs
-        corrections = self._l_corrections(features)
+        # extract features using vectornet
+        features = self._vectornet(inputs)
+        features = self._relu(self._linear1(features))
+
+        # merge anchor points with features
+        expanded_features = features.repeat(n_anchors, 1)
+        target_features = self._relu(self._linear2(torch.concat([expanded_features, anchors], dim=-1)))
+
+        # Generate corrections and confidences
+        corrections = self._l_corrections2(self._relu(self._bn_corr1(self._l_corrections1(target_features))))
         targets = anchors + corrections  # residual
-        confidences = self._l_confidence(features).squeeze(-1)
+        confidences = self._l_confidence2(self._relu(self._bn_conf1(self._l_confidence1(target_features)))).squeeze(-1)
+
         return features, targets, confidences
 
 

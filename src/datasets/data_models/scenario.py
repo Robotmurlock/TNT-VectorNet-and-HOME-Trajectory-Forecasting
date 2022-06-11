@@ -129,8 +129,16 @@ class ScenarioData:
         plt.plot(self.agent_traj_hist[:, 0], self.agent_traj_hist[:, 1], color='green', linewidth=7, label='Agent history')
         plt.plot(self.agent_traj_gt[:, 0], self.agent_traj_gt[:, 1], color='lightgreen', linewidth=7, label='Agent Ground Truth')
         if agent_forecast is not None:
-            plt.plot(agent_forecast[:, 0], agent_forecast[:, 1], color='turquoise', linewidth=7, label='Agent Forecast',
-                     linestyle='dashed')
+            if len(agent_forecast.shape) == 2:
+                # In case of single forecasts, reshape it as (1, traj_length, 2)
+                agent_forecast = agent_forecast.reshape(1, *agent_forecast.shape)
+            assert len(agent_forecast.shape) == 3, 'Invalid agent forecast shape!'
+
+            n_forecasts = agent_forecast.shape[0]
+            for f_index in range(n_forecasts):
+                plt.plot(agent_forecast[f_index, :, 0], agent_forecast[f_index, :, 1],
+                         color='turquoise', linewidth=7, label='Agent Forecast', linestyle='dashed')
+
         plt.scatter(self.agent_traj_hist[-1:, 0], self.agent_traj_hist[-1:, 1], color='teal', s=200)
 
         # plot objects

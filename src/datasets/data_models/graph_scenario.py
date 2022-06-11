@@ -95,7 +95,8 @@ class GraphScenarioData:
         self,
         fig: Optional[plt.Figure] = None,
         targets_prediction: Optional[np.ndarray] = None,
-        agent_traj_forecast: Optional[np.ndarray] = None
+        agent_traj_forecast: Optional[np.ndarray] = None,
+        scale: Optional[float] = None
     ) -> plt.Figure:
         """
         Visualizes scenario with:
@@ -110,6 +111,7 @@ class GraphScenarioData:
                 Make sure to always use same figure instead of creating multiple ones
             targets_prediction: Targets prediction
             agent_traj_forecast: Forecast trajectories
+            scale: Scale map
 
         Returns: Figure
         """
@@ -120,26 +122,42 @@ class GraphScenarioData:
 
         # Plot polylines
         sorted_polylines = sorted(self.polylines, key=lambda x: ObjectType.from_one_hot(x[0, 4:]).value, reverse=True)
+        sorted_polylines = [p * scale for p in sorted_polylines] if scale is not None else sorted_polylines
         for polyline in sorted_polylines:
             for point in polyline:
                 object_type = ObjectType.from_one_hot(point[4:])
                 plt.arrow(x=point[0], y=point[1], dx=point[2]-point[0], dy=point[3]-point[1],
                           color=object_type.color, label=object_type.label, length_includes_head=True,
-                          head_width=0.02, head_length=0.02)
+                          head_width=0.02, head_length=0.02, zorder=5)
 
         if agent_traj_forecast is not None:
-            for forecast_index in range(agent_traj_forecast.shape[0]):
-                plt.plot(agent_traj_forecast[forecast_index, :, 0], agent_traj_forecast[forecast_index, :, 1],
-                         color='lime', linewidth=5, label='forecast')
-            plt.plot(self.agent_traj_gt[:, 0], self.agent_traj_gt[:, 1], color='darkgreen', linewidth=5, label='ground truth')
+            if len(agent_traj_forecast.shape) == 2:
+                # In case of single forecasts, reshape it as (1, traj_length, 2)
+                agent_traj_forecast = agent_traj_forecast.reshape(1, *agent_traj_forecast.shape)
+            assert len(agent_traj_forecast.shape) == 3, 'Invalid agent forecast shape!'
+            agent_traj_forecast = agent_traj_forecast * scale if scale is not None else agent_traj_forecast
 
-        # Plot anchor points and ground truth target point
-        plt.scatter(self.anchors[:, 0], self.anchors[:, 1], color='purple', label='anchors')
-        plt.scatter([self.ground_truth_point[0]], [self.ground_truth_point[1]], color='pink', label='ground truth target', s=100)
+            n_forecasts = agent_traj_forecast.shape[0]
+            for f_index in range(n_forecasts):
+                plt.plot(agent_traj_forecast[f_index, :, 0], agent_traj_forecast[f_index, :, 1],
+                         color='lime', linewidth=5, label='forecast', zorder=10)
+
+        agent_traj_gt = self.agent_traj_gt * scale if scale is not None else self.agent_traj_gt
+        plt.plot(agent_traj_gt[:, 0], agent_traj_gt[:, 1], color='darkgreen', linewidth=5, label='ground truth', zorder=10)
 
         if targets_prediction is not None:
             # Plot prediction target points
-            plt.scatter(targets_prediction[:, 0], targets_prediction[:, 1], color='slateblue', label='target predictions', s=100)
+            targets_prediction = targets_prediction * scale if scale is not None else targets_prediction
+            plt.scatter(targets_prediction[:, 0], targets_prediction[:, 1],
+                        color='slateblue', label='target predictions', s=200, zorder=10)
+
+        # Plot anchor points and ground truth target point
+        anchors = self.anchors * scale if scale is not None else self.anchors
+        ground_truth_point = self.ground_truth_point * scale if scale is not None else self.ground_truth_point
+
+        plt.scatter(anchors[:, 0], anchors[:, 1], color='purple', label='anchors', zorder=20)
+        plt.scatter([ground_truth_point[0]], [ground_truth_point[1]],
+                    color='pink', label='ground truth target', s=200, zorder=20)
 
         # set title and axis info
         plt.title(f'Graph Scenario {self.id}')

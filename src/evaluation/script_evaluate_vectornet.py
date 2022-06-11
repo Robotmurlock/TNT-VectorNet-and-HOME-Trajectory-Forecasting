@@ -22,7 +22,9 @@ def run():
         dataset=dataset,
         output_path=os.path.join(steps.SOURCE_PATH, config.evaluation.output_path),
         device='cuda',
-        visualize=config.evaluation.visualize)
+        visualize=config.evaluation.visualize,
+        scale=25.0
+    )
 
 
 if __name__ == '__main__':
