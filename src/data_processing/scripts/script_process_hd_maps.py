@@ -46,7 +46,7 @@ def process_agent_data(
         - Agent history trajectory features
         - Ground truth trajectory
         - Agent (scenario) center point
-        - Agent naive speed approximation
+        - Agent naive velocity approximation
     """
     df_agent_traj = df[df.OBJECT_TYPE == 'AGENT']
     df_agent_traj = df_agent_traj.sort_values(by='TIMESTAMP')
@@ -74,9 +74,9 @@ def process_agent_data(
     if n_missing_points > 0:
         logger.debug(f'Padded {n_missing_points} on agent history trajectory.')
 
-    # approximate agent speed
-    agent_speed = trajectories.approximate_trajectory_speed(agent_traj_hist, mask_index=3)
-    logger.debug(f'Agent speed: ({agent_speed[0]}, {agent_speed[1]})')
+    # approximate agent velocity
+    agent_velocity = trajectories.approximate_trajectory_velocity(agent_traj_hist, mask_index=3)
+    logger.debug(f'Agent velocity: ({agent_velocity[0]}, {agent_velocity[1]})')
 
     # Asserts
     expected_traj_hist_shape = (trajectory_history_window_length, 4)
@@ -84,7 +84,7 @@ def process_agent_data(
     expected_traj_future_shape = (trajectory_future_window_length, 3)
     assert agent_traj_gt.shape == expected_traj_future_shape, f'Wrong shape: Expetced {expected_traj_future_shape} but found {agent_traj_gt.shape}'
 
-    return agent_traj_hist, agent_traj_gt, traj_center, agent_speed
+    return agent_traj_hist, agent_traj_gt, traj_center, agent_velocity
 
 
 def process_neighbors_data(
@@ -92,7 +92,7 @@ def process_neighbors_data(
     center_point: np.ndarray,
     agent_traj_hist: np.ndarray,
     agent_traj_gt: np.ndarray,
-    agent_speed: np.ndarray,
+    agent_velocity: np.ndarray,
     object_distance_threshold: Optional[float],
     trajectory_history_window_length: int,
     trajectory_future_window_length: int,
@@ -107,9 +107,9 @@ def process_neighbors_data(
         center_point: Agent center point
         agent_traj_hist: Agent trajectory history
         agent_traj_gt: Agent trajectory ground truth
-        agent_speed: Approximated agent speed
-        object_distance_threshold: Filter neighbor objects using agent speed (if not None)
-            If objects are too far (compared to approximated agent speed) then they are ignored
+        agent_velocity: Approximated agent velocity
+        object_distance_threshold: Filter neighbor objects using agent velocity (if not None)
+            If objects are too far (compared to approximated agent velocity) then they are ignored
         trajectory_history_window_length: History window length (parameter)
         trajectory_future_window_length: Future window length (parameter)
         object_trajectory_min_history_window_length: Min history window length
@@ -169,8 +169,8 @@ def process_neighbors_data(
 
         if object_distance_threshold is not None:
             object_center_point = object_traj_hist[-1, :2]  # mask values removed
-            alpha_x = np.abs(object_center_point[0]) / agent_speed[0]  # coordinates are already normalized (relative to agent)
-            alpha_y = np.abs(object_center_point[1]) / agent_speed[1]
+            alpha_x = np.abs(object_center_point[0]) / agent_velocity[0]  # coordinates are already normalized (relative to agent)
+            alpha_y = np.abs(object_center_point[1]) / agent_velocity[1]
 
             if alpha_x > object_distance_threshold:
                 n_objects -= 1
@@ -256,6 +256,8 @@ def process_lane_data(
     avm: ArgoverseMap,
     city: str,
     agent_center_point: np.ndarray,
+    agent_velocity: np.ndarray,
+    radius_scale: float,
     objects_center_points: List[np.ndarray],
     add_neighboring_lanes: bool
 ) -> np.ndarray:
@@ -266,6 +268,8 @@ def process_lane_data(
         avm: ArgoverseMap API
         city: Map (Miami or Pittsburg)
         agent_center_point: Agent center point
+        agent_velocity: Agent velocity is used for radius approximation
+        radius_scale: Radius scale (multiplied with agent_velocity)
         objects_center_points: Object center points
         add_neighboring_lanes: Add neighboring lanes segments (not just closest ones) (parameter)
 
@@ -279,10 +283,14 @@ def process_lane_data(
     lane_segment_id_list: List[List[int]] = []
     center_points = [agent_center_point] + objects_center_points
 
+    # Calculate radius
+    agent_velocity_vector_length = np.sqrt(agent_velocity[0] ** 2 + agent_velocity[1] ** 2)
+    radius: float = agent_velocity_vector_length * radius_scale
+
     for center_point in center_points:
         cx, cy = center_point
 
-        object_lane_segment_ids = avm.get_lane_ids_in_xy_bbox(cx, cy, city)
+        object_lane_segment_ids = avm.get_lane_ids_in_xy_bbox(cx, cy, city, radius)
         if add_neighboring_lanes:
             successors_ls_ids_output = [avm.get_lane_segment_successor_ids(ls, city) for ls in object_lane_segment_ids]
             predecessor_ls_ids_output = [avm.get_lane_segment_predecessor_ids(ls, city) for ls in object_lane_segment_ids]
@@ -335,7 +343,7 @@ def find_and_process_centerline_features(
     agent_traj_hist: np.ndarray,
     center_point: np.ndarray,
     trajectory_future_window_length: int,
-    max_centerline_distance: float
+    centerline_radius_scale: float
 ) -> Optional[np.ndarray]:
     """
 
@@ -345,20 +353,57 @@ def find_and_process_centerline_features(
         agent_traj_hist: Agent trajectory history (used to find candidate centerlines)
         center_point: Center point
         trajectory_future_window_length: Trajectory future window length (parameter)
-        max_centerline_distance: Maximum centerline distance (parameter)
+        centerline_radius_scale: Maximum centerline distance (parameter)
 
     Returns:
         - None if not centerlines are found
         - Centerlines with normalized x and y coordinates
     """
     agent_traj_hist_denormalized = agent_traj_hist[:, :2].copy() + center_point
+    agent_velocity = agent_traj_hist[-1, :2] - agent_traj_hist[-2, :2]  # velocity is here approximated using distance in last step
+    sampled_velocities = trajectories.sample_velocities(
+        raw_velocity=agent_velocity,
+        intensity=[0.5, 1.0, 2.0],
+        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2])
+    radius = np.sqrt(agent_velocity[0] ** 2 + agent_velocity[1] ** 2) * centerline_radius_scale
 
-    try:
-        centerlines = avm.get_candidate_centerlines_for_traj(agent_traj_hist_denormalized, city, max_search_radius=max_centerline_distance)
-    except AssertionError as e:
-        raise exceptions.NoCandidateCenterlinesWereFoundException('No centerline candidates were found!') from e
+    # Sample centerlines using naive future traj approximation (oversampled)
+    sampled_centerlines = []
+    for sv in sampled_velocities:
+        naive_future_traj = center_point + sv.reshape(1, 2).repeat(20, axis=0).cumsum(axis=0)
+        try:
+            cs = avm.get_candidate_centerlines_for_traj(naive_future_traj, city, max_search_radius=radius)
+            sampled_centerlines.append(cs)
+        except AssertionError:
+            pass  # No centerlines were found
 
-    n_found_centerlines = len(centerlines)
+    # Also sample centerlines using history traj
+    cs = avm.get_candidate_centerlines_for_traj(agent_traj_hist_denormalized, city, max_search_radius=radius)
+    sampled_centerlines.append(cs)
+
+    # Merge all centerlines
+    centerlines_with_duplicates = lists.flatten(sampled_centerlines)
+    n_centerlines_with_duplicates = len(centerlines_with_duplicates)
+
+    # Filter duplicates
+    centerlines = []
+    for cs_i in range(n_centerlines_with_duplicates):
+        keep = True
+        for cs_j in range(cs_i+1, n_centerlines_with_duplicates):
+            if centerlines_with_duplicates[cs_i].shape != centerlines_with_duplicates[cs_j].shape:
+                continue  # Different shape -> not duplicate
+            if np.sum(np.abs((centerlines_with_duplicates[cs_i] - centerlines_with_duplicates[cs_j]))) < 1e-3:
+                keep = False  # Same trajectory -> duplicate
+                break
+
+        if keep:
+            centerlines.append(centerlines_with_duplicates[cs_i])
+    n_centerlines = len(centerlines)
+
+    if n_centerlines == 0:
+        raise exceptions.NoCandidateCenterlinesWereFoundException('No centerline candidates were found!')
+
+    n_found_centerlines = n_centerlines
     logger.debug(f'Found {n_found_centerlines} candidate centerlines.')
 
     # normalize centerline trajectories
@@ -446,7 +491,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
 
         try:
             # Extract features
-            agent_traj_hist, agent_traj_gt, center_point, agent_speed = process_agent_data(
+            agent_traj_hist, agent_traj_gt, center_point, agent_velocity = process_agent_data(
                 df=seq_df,
                 trajectory_history_window_length=self._config.global_parameters.trajectory_history_window_length,
                 trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
@@ -458,7 +503,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
                 center_point=center_point,
                 agent_traj_hist=agent_traj_hist,
                 agent_traj_gt=agent_traj_gt,
-                agent_speed=agent_speed,
+                agent_velocity=agent_velocity,
                 object_distance_threshold=self._parameters.object_distance_threshold,
                 trajectory_history_window_length=self._config.global_parameters.trajectory_history_window_length,
                 trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
@@ -472,6 +517,8 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
                 avm=self._avm,
                 city=city,
                 agent_center_point=center_point,
+                agent_velocity=agent_velocity,
+                radius_scale=self._parameters.lane_radius_scale,
                 objects_center_points=objects_center_points,
                 add_neighboring_lanes=self._parameters.add_neighboring_lanes
             )
@@ -482,7 +529,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
                 agent_traj_hist=agent_traj_hist,
                 center_point=center_point,
                 trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
-                max_centerline_distance=self._parameters.max_centerline_distance
+                centerline_radius_scale=self._parameters.centerline_radius_scale
             )
 
             # Update variance stats
