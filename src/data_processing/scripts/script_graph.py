@@ -3,6 +3,7 @@ import logging
 from tqdm import tqdm
 import numpy as np
 from typing import List
+import multiprocessing
 
 from utils import steps, trajectories
 import configparser

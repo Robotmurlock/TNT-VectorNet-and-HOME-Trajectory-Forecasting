@@ -34,6 +34,7 @@ class DataProcessParametersConfig:
 class DataProcessConfig:
     input_path: str
     output_path: str
+    n_processes: int
     visualize: bool
     parameters: DataProcessParametersConfig
 

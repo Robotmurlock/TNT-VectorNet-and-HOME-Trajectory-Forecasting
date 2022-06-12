@@ -1,20 +1,19 @@
+import multiprocessing
 import os
 from pathlib import Path
-
+from typing import Tuple, List, Optional, Any, Union, Set
+import logging
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from utils import steps, trajectories, lists, time
-from data_processing import exceptions
-from datasets.data_models.scenario import ScenarioData
-
-import configparser
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
-from typing import Tuple, List, Optional
 
-import logging
+from utils import steps, trajectories, lists, time
+from data_processing import exceptions, pipeline
+from datasets.data_models.scenario import ScenarioData
+import configparser
 
 
 logger = logging.getLogger('DataProcess')
@@ -405,86 +404,94 @@ def calculate_point_variance(
     return np.var(distances)
 
 
-@time.timeit
-def run(config: configparser.GlobalConfig):
+class ArgoverseHDPipeline(pipeline.Pipeline):
     """
-    Processes rad HD map using ArgoVerse API
-
-    Args:
-        config: Congiruation
+    Allows running HD map processing in parallel
     """
-    parameters = config.data_process.parameters
-    dataset_path = os.path.join(steps.SOURCE_PATH, config.data_process.input_path)
-    output_path = os.path.join(steps.SOURCE_PATH, config.data_process.output_path)
-    Path(output_path).mkdir(parents=True, exist_ok=True)
-    completed_sequences = set(os.listdir(output_path))
+    def __init__(
+        self,
+        output_path: str,
+        config: configparser.GlobalConfig,
+        argoverse_map: ArgoverseMap,
+        completed_sequences: Optional[Union[Set[str], List[str]]] = None,
+        visualize: bool = False
+    ):
+        """
+        Args:
+            output_path: Output path
+            config: Configs
+            argoverse_map: Argoverse Map API
+            completed_sequences: List of completed sequences (to be skipped)
+            visualize: Visualize data (or not)
+        """
+        super().__init__(output_path=output_path, visualize=visualize)
 
-    avfl = ArgoverseForecastingLoader(dataset_path)
-    avm = ArgoverseMap()
-    fig = None  # figure for visualization_backup (optional usage)
+        self._avm = argoverse_map
+        self._config = config
+        self._parameters = config.data_process.parameters
 
-    total_variance = 0.0
-    total_scenarios = 0
-    logger.info('Started datasets processing.')
-    for data in tqdm(avfl, total=len(avfl)):
-        sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
-        sequence_fullname = f'{data.city}_{sequence_name}'
-        if sequence_fullname in completed_sequences:
+        self._completed_sequences = completed_sequences
+        if self._completed_sequences is None:
+            self._completed_sequences = []
+        self._completed_sequences = set(self._completed_sequences)
+
+    def process(self, data: Any) -> Any:
+        seq_df, sequence_name, city = data
+        sequence_fullname = f'{city}_{sequence_name}'
+        if sequence_fullname in self._completed_sequences:
             logger.debug(f'Sequence "{sequence_fullname}" already processed!')
-            continue
+            return
 
         logger.debug(f'Processing sequence "{sequence_fullname}"...')
 
         try:
             # Extract features
             agent_traj_hist, agent_traj_gt, center_point, agent_speed = process_agent_data(
-                df=data.seq_df,
-                trajectory_history_window_length=config.global_parameters.trajectory_history_window_length,
-                trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
-                trajectory_min_history_window_length=parameters.trajectory_min_history_window_length
+                df=seq_df,
+                trajectory_history_window_length=self._config.global_parameters.trajectory_history_window_length,
+                trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
+                trajectory_min_history_window_length=self._parameters.trajectory_min_history_window_length
             )
 
             objects_traj_hists, objects_traj_gts, objects_center_points = process_neighbors_data(
-                df=data.seq_df,
+                df=seq_df,
                 center_point=center_point,
                 agent_traj_hist=agent_traj_hist,
                 agent_traj_gt=agent_traj_gt,
                 agent_speed=agent_speed,
-                object_distance_threshold=parameters.object_distance_threshold,
-                trajectory_history_window_length=config.global_parameters.trajectory_history_window_length,
-                trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
-                object_trajectory_min_history_window_length=parameters.object_trajectory_min_history_window_length,
-                object_trajectory_min_future_window_length=parameters.object_trajectory_min_future_window_length
+                object_distance_threshold=self._parameters.object_distance_threshold,
+                trajectory_history_window_length=self._config.global_parameters.trajectory_history_window_length,
+                trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
+                object_trajectory_min_history_window_length=self._parameters.object_trajectory_min_history_window_length,
+                object_trajectory_min_future_window_length=self._parameters.object_trajectory_min_future_window_length
             )
 
             agent_traj_hist, agent_traj_gt = drop_agent_traj_timestamps(agent_traj_hist, agent_traj_gt)
 
             lane_features = process_lane_data(
-                avm=avm,
-                city=data.city,
+                avm=self._avm,
+                city=city,
                 agent_center_point=center_point,
                 objects_center_points=objects_center_points,
-                add_neighboring_lanes=parameters.add_neighboring_lanes
+                add_neighboring_lanes=self._parameters.add_neighboring_lanes
             )
 
             centerline_candidate_features = find_and_process_centerline_features(
-                avm=avm,
-                city=data.city,
+                avm=self._avm,
+                city=city,
                 agent_traj_hist=agent_traj_hist,
                 center_point=center_point,
-                trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
-                max_centerline_distance=parameters.max_centerline_distance
+                trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
+                max_centerline_distance=self._parameters.max_centerline_distance
             )
 
             # Update variance stats
             variance = calculate_point_variance(agent_traj_hist, objects_traj_hists, lane_features, centerline_candidate_features)
-            total_variance += variance
-            total_scenarios += 1
             logger.debug(f'Variance: {variance:.2f}')
 
             scenario = ScenarioData(
                 id=sequence_name,
-                city=data.city,
+                city=city,
                 center_point=center_point,
                 agent_traj_hist=agent_traj_hist,
                 agent_traj_gt=agent_traj_gt,
@@ -494,19 +501,69 @@ def run(config: configparser.GlobalConfig):
                 centerline_candidate_features=centerline_candidate_features
             )
 
-            scenario.save(output_path)
-            if config.data_process.visualize:
-                fig = scenario.visualize(fig)
-                figpath = os.path.join(output_path, scenario.dirname, 'scenario.png')
-                fig.savefig(figpath)
+            return scenario
 
         except exceptions.DataProcessException as e:
             logger.warning(f'Skipped "{sequence_name}" sequence! Error: "{e}"')
 
-    # Assumptions: All Scenarios points are independent => global variance equals sum of all scenario variances
-    global_variance = total_variance / total_scenarios
-    global_std = np.sqrt(global_variance)
-    logger.info(f'Global Standard Deviation: {global_std:.2f}')
+    def save(self, data: ScenarioData) -> None:
+        data.save(self._output_path)
+
+    def visualize(self, data: Any) -> None:
+        # Load process fig
+        pid = multiprocessing.current_process()
+        if pid not in self._fig_catalog:
+            self._fig_catalog[pid] = None
+        fig = self._fig_catalog[pid]
+
+        # Plot on figure
+        fig = data.visualize(fig)
+        figpath = os.path.join(self._output_path, data.dirname, 'scenario.png')
+        fig.savefig(figpath)
+
+        # Store process fig
+        self._fig_catalog[pid] = fig
+
+
+def avfl_dataloader(avfl: ArgoverseForecastingLoader):
+    """
+    Argoverse DataLoader wrapper
+
+    Args:
+        avfl: ArgoverseForecastingLoader
+
+    Returns: Sequences (dataframe), sequence name, sequence city
+    """
+    for data in tqdm(avfl, total=len(avfl)):
+        sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
+        yield data.seq_df, sequence_name, data.city
+
+
+@time.timeit
+def run(config: configparser.GlobalConfig):
+    """
+    Processes rad HD map using ArgoVerse API
+
+    Args:
+        config: Congiruation
+    """
+    dataset_path = os.path.join(steps.SOURCE_PATH, config.data_process.input_path)
+    output_path = os.path.join(steps.SOURCE_PATH, config.data_process.output_path)
+
+    avfl = ArgoverseForecastingLoader(dataset_path)
+    avm = ArgoverseMap()
+
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    completed_sequences = set(os.listdir(output_path))
+
+    hd_pipeline = ArgoverseHDPipeline(
+        output_path=output_path,
+        config=config,
+        argoverse_map=avm,
+        completed_sequences=completed_sequences,
+        visualize=config.data_process.visualize
+    )
+    pipeline.run_pipeline(pipeline=hd_pipeline, data_iterator=avfl_dataloader(avfl), n_processes=config.data_process.n_processes)
 
 
 if __name__ == '__main__':

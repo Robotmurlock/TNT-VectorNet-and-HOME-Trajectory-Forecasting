@@ -12,6 +12,10 @@ class PGN(nn.Module):
         self._out_features_list = [self._in_features * (2 ** i) for i in range(n_layers)]
         self._layers = nn.ModuleList([PolylineLayer(n, device) for n in self._out_features_list])
 
+        # post
+        self._post_linear = nn.Linear(2*self._out_features_list[-1], 2*self._out_features_list[-1])
+        self._post_layernorm = nn.LayerNorm(2*self._out_features_list[-1])
+
     @property
     def out_features(self):
         return self._in_features * (2 ** len(self._layers))
@@ -19,7 +23,9 @@ class PGN(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for layer in self._layers:
             x = layer(x)
-        return torch.max(x, dim=-2)[0]
+        x = torch.max(x, dim=-2)[0]
+        x = self._post_layernorm(self._post_linear(x))
+        return x
 
 
 class PolylineLayer(nn.Module):

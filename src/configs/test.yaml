@@ -6,6 +6,7 @@ global_parameters:
 data_process:
   input_path: 'test_data/sample2'
   output_path: 'test_data/internal'
+  n_processes: 8
   visualize: True
   parameters:
     trajectory_min_history_window_length: 5
