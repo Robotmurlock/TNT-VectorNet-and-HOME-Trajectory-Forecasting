@@ -13,8 +13,9 @@ data_process:
     object_trajectory_min_history_window_length: 5
     object_trajectory_min_future_window_length: 3
     object_distance_threshold: 100
-    max_centerline_distance: 5
+    centerline_radius_scale: 3.0
     add_neighboring_lanes: True
+    lane_radius_scale: 3.0
 raster:
   data_process:
     input_path: 'test_data/internal'

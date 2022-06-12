@@ -3,7 +3,6 @@ import logging
 from tqdm import tqdm
 import numpy as np
 from typing import List
-import multiprocessing
 
 from utils import steps, trajectories
 import configparser
@@ -97,36 +96,6 @@ def create_lane_polylines(lane_features: np.ndarray, max_segments: int) -> List[
             for object_index in range(lane_features.shape[0])]
 
 
-def sample_velocities(raw_velocity: np.ndarray, intensity: List[float], rotations: List[float]) -> List[np.ndarray]:
-    """
-    Sample velocitys from given intensity multipliers and agent angle rotations
-
-    velocity sample formula
-    |cos(r) -sin(r)| * t * |Vx|
-    |sin(r) cos(r) |       |Vy|
-    where r is rotation, t is time elapsed from last point in history trajectory
-    and Vx and Vy are Velocity projections
-
-
-    Args:
-        raw_velocity: Velocity at last position in history trajectory
-        intensity: List of intensity multipliers
-        rotations: LIst of rotations
-
-    Returns: List of sampled velocities
-    """
-    velocities = []
-    for i in intensity:
-        for r in rotations:
-            velocity = i * np.array([
-                raw_velocity[0] * np.cos(r) - raw_velocity[1] * np.sin(r),
-                raw_velocity[1] * np.sin(r) + raw_velocity[1] * np.cos(r)
-            ])
-            velocities.append(velocity)
-
-    return velocities
-
-
 def sample_lane_points(center: np.ndarray, points: np.ndarray, n: int, threshold: float = 0.25) -> np.ndarray:
     """
     Samples points from lanes and objects based on distance to center point where center point is estimated
@@ -178,7 +147,10 @@ def sample_anchor_points(lane_points: np.ndarray, agent_traj_hist: np.ndarray, f
     """
     # Using last two points to approximate velocity gives better results than average of whole trajectory
     velocity = agent_traj_hist[-1, :] - agent_traj_hist[-2, :]
-    sampled_velocities = sample_velocities(velocity, intensity=[0.5, 1.0, 2.0], rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2])
+    sampled_velocities = trajectories.sample_velocities(
+        raw_velocity=velocity,
+        intensity=[0.5, 1.0, 2.0],
+        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2])
     sampled_forecast_centers = [ss * future_traj_length for ss in sampled_velocities]
     sampled_lane_points = [sample_lane_points(sfc, lane_points, 5) for sfc in sampled_forecast_centers]
     return np.vstack(sampled_lane_points)

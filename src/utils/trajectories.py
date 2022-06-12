@@ -1,6 +1,6 @@
 import numpy as np
 import enum
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 
 class PadType(enum.Enum):
@@ -87,9 +87,9 @@ def denormalize_polyline(polyline: np.ndarray, last_index: int, sigma: float) ->
     return polyline
 
 
-def approximate_trajectory_speed(trajectory: np.ndarray, absolute: bool = True, mask_index: Optional[int] = None) -> np.ndarray:
+def approximate_trajectory_velocity(trajectory: np.ndarray, absolute: bool = True, mask_index: Optional[int] = None) -> np.ndarray:
     """
-    Approximates trajectory speed from history trajectory
+    Approximates trajectory velocity from history trajectory
 
     Args:
         trajectory: history trajectory
@@ -108,3 +108,32 @@ def approximate_trajectory_speed(trajectory: np.ndarray, absolute: bool = True, 
     assert speed.shape == (2,), f'Wrong shape: Expetced {(2,)} but found {speed.shape}'
     return speed
 
+
+def sample_velocities(raw_velocity: np.ndarray, intensity: List[float], rotations: List[float]) -> List[np.ndarray]:
+    """
+    Sample velocitys from given intensity multipliers and agent angle rotations
+
+    velocity sample formula
+    |cos(r) -sin(r)| * t * |Vx|
+    |sin(r) cos(r) |       |Vy|
+    where r is rotation, t is time elapsed from last point in history trajectory
+    and Vx and Vy are Velocity projections
+
+
+    Args:
+        raw_velocity: Velocity at last position in history trajectory
+        intensity: List of intensity multipliers
+        rotations: LIst of rotations
+
+    Returns: List of sampled velocities
+    """
+    velocities = []
+    for i in intensity:
+        for r in rotations:
+            velocity = i * np.array([
+                raw_velocity[0] * np.cos(r) - raw_velocity[1] * np.sin(r),
+                raw_velocity[1] * np.sin(r) + raw_velocity[1] * np.cos(r)
+            ])
+            velocities.append(velocity)
+
+    return velocities

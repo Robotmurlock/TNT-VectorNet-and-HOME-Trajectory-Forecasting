@@ -26,8 +26,9 @@ class DataProcessParametersConfig:
     object_trajectory_min_history_window_length: int  # Nhomin
     object_trajectory_min_future_window_length: int  # Nromin
     object_distance_threshold: Optional[float]  # Tsteps
-    max_centerline_distance: float  # Dlsmax
+    centerline_radius_scale: float  # Dlsmax
     add_neighboring_lanes: bool
+    lane_radius_scale: float
 
 
 @dataclass
