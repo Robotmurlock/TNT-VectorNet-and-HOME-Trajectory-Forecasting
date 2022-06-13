@@ -12,6 +12,7 @@ class ScenarioData:
     id: str
     city: str
     center_point: np.ndarray
+    angle: float
     agent_traj_hist: np.ndarray
     agent_traj_gt: np.ndarray
     objects_traj_hists: np.ndarray
@@ -53,6 +54,7 @@ class ScenarioData:
 
         catalog = {
             'center_point.npy': self.center_point,
+            'angle.npy': np.array(self.angle),
             'agent_traj_hist.npy': self.agent_traj_hist,
             'agent_traj_gt.npy': self.agent_traj_gt,
             'objects_traj_hists.npy': self.objects_traj_hists,
@@ -75,7 +77,7 @@ class ScenarioData:
 
         Returns: ScenarioData
         """
-        objects_to_load = ['center_point', 'agent_traj_hist', 'agent_traj_gt', 'objects_traj_hists',
+        objects_to_load = ['center_point', 'angle', 'agent_traj_hist', 'agent_traj_gt', 'objects_traj_hists',
                            'objects_traj_gts', 'lane_features', 'centerline_candidate_features']
         filename = os.path.basename(path)
         sequence_city, sequence_id = filename.split('_')
@@ -84,6 +86,8 @@ class ScenarioData:
         for object_name in objects_to_load:
             object_path = os.path.join(path, f'{object_name}.npy')
             catalog[object_name] = np.load(object_path)
+
+        catalog['angle'] = float(catalog['angle'])  # angle is float saves as numpy array
 
         return cls(**catalog)
 

@@ -3,6 +3,7 @@ import logging
 from tqdm import tqdm
 import numpy as np
 from typing import List
+import random
 
 from utils import steps, trajectories
 import configparser
@@ -10,6 +11,7 @@ from datasets.data_models import ScenarioData, GraphScenarioData, ObjectType
 
 
 logger = logging.getLogger('DataGraph')
+random.seed(42)
 
 
 def create_polyline(polyline_data: np.ndarray, object_type: ObjectType, max_segments: int) -> np.ndarray:
@@ -31,12 +33,13 @@ def create_polyline(polyline_data: np.ndarray, object_type: ObjectType, max_segm
     last_point = None
     for point_index in range(polyline_data.shape[0]):
         point = polyline_data[point_index]
+        empty_metadata = np.zeros(5)  # metadata is only for lanes
         if point[2] == 0:
             continue
         point = point[:2]
 
         if last_point is not None:
-            edge = np.hstack([last_point, point, object_type.one_hot])
+            edge = np.hstack([last_point, point, object_type.one_hot, empty_metadata])
             polyline_edges_list.append(edge)
         last_point = point
 
@@ -73,8 +76,9 @@ def create_lane_polyline(lane_feature: np.ndarray, max_segments: int) -> np.ndar
     last_point = None
     for point_index in range(lane_feature.shape[0]):
         point = lane_feature[point_index][:2]
+        metadata = lane_feature[point_index][2:]
         if last_point is not None:
-            edge = np.hstack([last_point, point, ObjectType.CENTERLINE.one_hot])
+            edge = np.hstack([last_point, point, ObjectType.CENTERLINE.one_hot, metadata])
             polyline_edges_list.append(edge)
         last_point = point
 
@@ -118,7 +122,7 @@ def sample_lane_points(center: np.ndarray, points: np.ndarray, n: int, threshold
 
         skip = False
         for sind in sampled_indexes:
-            if (points[ind, 0] - points[sind, 0]) ** 2 + (points[ind, 1] - points[sind, 1]) ** 2 <= threshold:
+            if np.sqrt((points[ind, 0] - points[sind, 0]) ** 2 + (points[ind, 1] - points[sind, 1]) ** 2) <= threshold:
                 skip = True
                 break
         if skip:
@@ -128,8 +132,10 @@ def sample_lane_points(center: np.ndarray, points: np.ndarray, n: int, threshold
 
     if len(sampled_indexes) < n:
         missing_indexes = n - len(sampled_indexes)
-        sorted_indexes = np.argsort(distances2)
-        sampled_indexes = sampled_indexes + list(sorted_indexes[:missing_indexes])
+        logger.debug(f'Number of missing indices: {missing_indexes}')
+        unused_indexes = list(set(range(distances2.points[0])) - set(sampled_indexes))
+        random_indexes = random.choices(unused_indexes, k=missing_indexes)
+        sampled_indexes = sampled_indexes + random_indexes
 
     return points[sampled_indexes]
 
@@ -149,8 +155,10 @@ def sample_anchor_points(lane_points: np.ndarray, agent_traj_hist: np.ndarray, f
     velocity = agent_traj_hist[-1, :] - agent_traj_hist[-2, :]
     sampled_velocities = trajectories.sample_velocities(
         raw_velocity=velocity,
-        intensity=[0.5, 1.0, 2.0],
-        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2])
+        intensity_mult=[0.5, 1.0, 2.0],
+        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2],
+        intensity_add=[0.0, 0.05, 0.1]
+    )
     sampled_forecast_centers = [ss * future_traj_length for ss in sampled_velocities]
     sampled_lane_points = [sample_lane_points(sfc, lane_points, 5) for sfc in sampled_forecast_centers]
     return np.vstack(sampled_lane_points)
@@ -234,14 +242,17 @@ def run(config: configparser.GlobalConfig):
         # Pad all polylines to dimension (20, 9) where last dimension is mask
         polylines = [trajectories.pad_trajectory(p, dpg_config.max_polyline_segments, trajectories.PadType.PAST)[0]
                      for p in polylines]
+
+        # create anchors
+        anchors = sample_anchor_points(np.vstack(candidate_polylines)[:, :2], scenario.agent_traj_hist, scenario.agent_traj_gt.shape[0])
+
+        # filter polylines
         polylines = sorted(polylines, key=polyline_distance_from_center)
         polylines = polylines[:dpg_config.max_polylines]
 
-        # create anchors
-        anchors = sample_anchor_points(np.vstack(polylines)[:, :2], scenario.agent_traj_hist, scenario.agent_traj_gt.shape[0])
-
         # normalize polylines and anchors
         polylines = [trajectories.normalize_polyline(polyline, last_index=4, sigma=sigma) for polyline in polylines]
+        polylines = np.stack(polylines)  # convert to numpy
         agent_traj_gt_normalized = trajectories.normalize_polyline(scenario.agent_traj_gt, last_index=2, sigma=sigma)
         objects_traj_gts_normalized = trajectories.normalize_polyline(scenario.objects_traj_gts, last_index=2, sigma=sigma)
         anchors = trajectories.normalize_polyline(anchors, last_index=2, sigma=sigma)

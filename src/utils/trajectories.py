@@ -109,7 +109,12 @@ def approximate_trajectory_velocity(trajectory: np.ndarray, absolute: bool = Tru
     return speed
 
 
-def sample_velocities(raw_velocity: np.ndarray, intensity: List[float], rotations: List[float]) -> List[np.ndarray]:
+def sample_velocities(
+    raw_velocity: np.ndarray,
+    intensity_mult: List[float],
+    rotations: List[float],
+    intensity_add: Optional[List[float]] = None
+) -> List[np.ndarray]:
     """
     Sample velocitys from given intensity multipliers and agent angle rotations
 
@@ -122,18 +127,40 @@ def sample_velocities(raw_velocity: np.ndarray, intensity: List[float], rotation
 
     Args:
         raw_velocity: Velocity at last position in history trajectory
-        intensity: List of intensity multipliers
-        rotations: LIst of rotations
+        intensity_mult: List of intensity multipliers
+        rotations: List of rotations
+        intensity_add: Adds base value to intensity
 
     Returns: List of sampled velocities
     """
+    if intensity_add is None:
+        intensity_add = [0.0]
+
     velocities = []
-    for i in intensity:
-        for r in rotations:
-            velocity = i * np.array([
-                raw_velocity[0] * np.cos(r) - raw_velocity[1] * np.sin(r),
-                raw_velocity[1] * np.sin(r) + raw_velocity[1] * np.cos(r)
-            ])
-            velocities.append(velocity)
+    for intmul in intensity_mult:
+        for intadd in intensity_add:
+            for r in rotations:
+                theta = np.arctan2(raw_velocity[1], raw_velocity[0])  # direction angle
+                x = raw_velocity[0] + np.cos(theta) * intadd  # add intadd proportional by angle
+                y = raw_velocity[1] + np.sin(theta) * intadd
+                velocity = intmul * np.array([
+                    x * np.cos(r) - y * np.sin(r),
+                    x * np.sin(r) + y * np.cos(r)
+                ])
+                velocities.append(velocity)
 
     return velocities
+
+
+def calc_angle_to_y_axis(point: np.ndarray) -> float:
+    return np.pi / 2 - np.arctan2(point[1], point[0])
+
+
+def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
+    rotmat = np.array([
+        [np.cos(angle), -np.sin(angle)],
+        [np.sin(angle), np.cos(angle)]
+    ])
+
+    points[..., :2] = (rotmat @ points[..., :2].T).T
+    return points

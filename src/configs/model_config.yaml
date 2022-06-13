@@ -1,4 +1,4 @@
-polyline_features: 9
+polyline_features: 14
 trajectory_length: 30
 n_trajectories: 6
 device: 'cuda'
