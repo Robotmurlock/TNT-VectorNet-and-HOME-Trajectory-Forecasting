@@ -29,6 +29,7 @@ class DataProcessParametersConfig:
     centerline_radius_scale: float  # Dlsmax
     add_neighboring_lanes: bool
     lane_radius_scale: float
+    min_lane_radius: float
 
 
 @dataclass

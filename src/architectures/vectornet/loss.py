@@ -8,8 +8,8 @@ class TargetsLoss(nn.Module):
     def __init__(self, alpha: float = 1.0, delta: float = 0.16):
         super(TargetsLoss, self).__init__()
         self.alpha = alpha
-        self._ce = nn.CrossEntropyLoss()
-        self._huber = nn.HuberLoss(delta=delta)
+        self._ce = nn.BCEWithLogitsLoss()
+        self._huber = nn.HuberLoss(delta=delta, reduction='sum')
 
     def forward(self, targets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         """
@@ -29,8 +29,9 @@ class TargetsLoss(nn.Module):
         # Finding the closest point
         distances = torch.sqrt((targets[..., 0] - ground_truth[..., 0]) ** 2 + (targets[..., 1] - ground_truth[..., 1]) ** 2)
         closest_target_index = torch.argmin(distances, dim=-1)
+        closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[0]).float()
 
-        ce_loss = self._ce(confidences, closest_target_index)  # closest target should have confidence 1 and all others should have 0
+        ce_loss = self._ce(confidences, closest_target_index_onehot)  # closest target should have confidence 1 and all others should have 0
         huber_loss = self._huber(targets[..., closest_target_index, :], ground_truth)  # MSE between the closest target and ground truth (end point)
         total_loss = ce_loss + self.alpha * huber_loss
 

@@ -34,7 +34,7 @@ class TargetDrivenForecaster(BaseModel):
 def test():
     polylines = torch.randn(200, 20, 9)
     anchors = torch.randn(75, 2)
-    tdf = TargetDrivenForecaster(polyline_features=9, trajectory_length=20, n_trajectories=10, device='cpu')
+    tdf = TargetDrivenForecaster(polyline_features=14, trajectory_length=20, n_trajectories=10, device='cpu')
     trajs, confs, targets = tdf(polylines, anchors)
     print(trajs.shape, confs.shape, targets.shape)
 

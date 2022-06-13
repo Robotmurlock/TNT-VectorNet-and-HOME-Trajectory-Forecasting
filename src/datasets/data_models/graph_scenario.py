@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import numpy as np
 from pathlib import Path
 import os
-from typing import List, Optional
+from typing import Optional
 import torch
 import matplotlib.pyplot as plt
 
@@ -15,7 +15,7 @@ class GraphScenarioData:
     id: str
     city: str
     center_point: np.ndarray
-    polylines: List[np.ndarray]
+    polylines: np.ndarray
     agent_traj_gt: np.ndarray
     objects_traj_gts: np.ndarray
     anchors: np.ndarray
@@ -170,4 +170,3 @@ class GraphScenarioData:
         plt.legend(by_label.values(), by_label.keys(), loc='upper right')
 
         return fig
-

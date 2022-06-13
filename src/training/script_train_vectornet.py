@@ -22,7 +22,7 @@ def run(config: configparser.GlobalConfig):
     dataset = VectorNetScenarioDataset(input_path, augment=True)
 
     # Models
-    anchor_generator = TargetGenerator(polyline_features=9, device=device).to(device)
+    anchor_generator = TargetGenerator(polyline_features=14, device=device).to(device)
     forecaster = TrajectoryForecaster(n_features=256, trajectory_length=config.global_parameters.trajectory_future_window_length).to(device)
 
     # Loss functions
@@ -64,7 +64,7 @@ def run(config: configparser.GlobalConfig):
 
             # loss
             f_huber_loss = tf_criteria(forecasted_trajectories, gt_traj)
-            all_loss = 1.2*ag_ce_loss + 0.15*ag_huber_loss + 0.5*f_huber_loss
+            all_loss = 0.1*ag_ce_loss + 0.1*ag_huber_loss + 1.0*f_huber_loss
             all_loss.backward()
             ag_optimizer.step()
             f_optimizer.step()

@@ -24,7 +24,7 @@ def process_agent_data(
     trajectory_history_window_length: int,
     trajectory_future_window_length: int,
     trajectory_min_history_window_length: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Extracts Agent trajectory:
         - history (features for predictions)
@@ -47,6 +47,7 @@ def process_agent_data(
         - Ground truth trajectory
         - Agent (scenario) center point
         - Agent naive velocity approximation
+        - Angle for rotation to y-axis based on last observed agent point
     """
     df_agent_traj = df[df.OBJECT_TYPE == 'AGENT']
     df_agent_traj = df_agent_traj.sort_values(by='TIMESTAMP')
@@ -61,12 +62,22 @@ def process_agent_data(
     traj = df_agent_traj[['X', 'Y', 'TIMESTAMP']]  # timestamp is required to sync with neighboring objects
     agent_traj_gt = traj.iloc[-trajectory_future_window_length:].values
     agent_traj_hist = traj.iloc[-trajectory_future_window_length-trajectory_history_window_length:-trajectory_future_window_length].values
+    base_agent_traj_hist = agent_traj_hist.copy()
+
+    # approximate agent angle to y-axis
+    direction_at_last_observed_step = agent_traj_hist[-1, :] - agent_traj_hist[0, :]
+    agent_y_angle = trajectories.calc_angle_to_y_axis(direction_at_last_observed_step)
+    logger.debug(f'Agent angle: {agent_y_angle}')
 
     # normalize trajectory by center coordite (all coordinates are relative to agent trajectory center)
-    traj_center = agent_traj_hist[-1, :2].copy()  # center point (all values)
+    traj_center = base_agent_traj_hist[-1, :2].copy()  # center point (all values)
     agent_traj_gt[:, :2] -= traj_center  # Third dimension is timestamp
     agent_traj_hist[:, :2] -= traj_center  # Third dimension is timestamp
     logger.debug(f'Agent center point: ({traj_center[0]}, {traj_center[1]})')
+
+    # normalize trajectory by direction (last observed agent position is on y-axis)
+    agent_traj_hist = trajectories.rotate_points(agent_traj_hist, agent_y_angle)
+    agent_traj_gt = trajectories.rotate_points(agent_traj_gt, agent_y_angle)
 
     # add paddings to traj_hist
     agent_traj_hist, n_missing_points = trajectories.pad_trajectory(agent_traj_hist, trajectory_history_window_length,
@@ -75,8 +86,8 @@ def process_agent_data(
         logger.debug(f'Padded {n_missing_points} on agent history trajectory.')
 
     # approximate agent velocity
-    agent_velocity = trajectories.approximate_trajectory_velocity(agent_traj_hist, mask_index=3)
-    logger.debug(f'Agent velocity: ({agent_velocity[0]}, {agent_velocity[1]})')
+    base_agent_velocity = trajectories.approximate_trajectory_velocity(base_agent_traj_hist)
+    logger.debug(f'Agent velocity: ({base_agent_velocity[0]}, {base_agent_velocity[1]})')
 
     # Asserts
     expected_traj_hist_shape = (trajectory_history_window_length, 4)
@@ -84,15 +95,16 @@ def process_agent_data(
     expected_traj_future_shape = (trajectory_future_window_length, 3)
     assert agent_traj_gt.shape == expected_traj_future_shape, f'Wrong shape: Expetced {expected_traj_future_shape} but found {agent_traj_gt.shape}'
 
-    return agent_traj_hist, agent_traj_gt, traj_center, agent_velocity
+    return agent_traj_hist, agent_traj_gt, traj_center, base_agent_velocity, agent_y_angle, base_agent_traj_hist
 
 
 def process_neighbors_data(
     df: pd.DataFrame,
     center_point: np.ndarray,
+    agent_angle: float,
     agent_traj_hist: np.ndarray,
     agent_traj_gt: np.ndarray,
-    agent_velocity: np.ndarray,
+    base_agent_velocity: np.ndarray,
     object_distance_threshold: Optional[float],
     trajectory_history_window_length: int,
     trajectory_future_window_length: int,
@@ -105,9 +117,10 @@ def process_neighbors_data(
     Args:
         df: Sequence DataFrame
         center_point: Agent center point
+        agent_angle: Rotation angle (normalization)
         agent_traj_hist: Agent trajectory history
         agent_traj_gt: Agent trajectory ground truth
-        agent_velocity: Approximated agent velocity
+        base_agent_velocity: Approximated agent velocity
         object_distance_threshold: Filter neighbor objects using agent velocity (if not None)
             If objects are too far (compared to approximated agent velocity) then they are ignored
         trajectory_history_window_length: History window length (parameter)
@@ -133,6 +146,7 @@ def process_neighbors_data(
     n_objects = df.TRACK_ID.nunique()
     objects_traj_hist_list = []
     objects_traj_gt_list = []
+    objects_center_points = []
     for object_id, df_object in df.groupby('TRACK_ID'):
         df_object = df_object.sort_values(by='TIMESTAMP')
         logger.debug(f'Object "{object_id}" full trajectory length {df_object.shape[0]} after syncing.')
@@ -155,22 +169,10 @@ def process_neighbors_data(
             n_objects -= 1
             continue
 
-        # normalize trajectories
-        object_traj_hist -= center_point
-        object_traj_gt -= center_point
-
-        # pad trajectories
-        object_traj_hist, n_hist_missing = trajectories.pad_trajectory(object_traj_hist, trajectory_history_window_length,
-                                                                       pad_type=trajectories.PadType.PAST)
-        object_traj_gt, n_gt_missing = trajectories.pad_trajectory(object_traj_gt, trajectory_future_window_length,
-                                                                   pad_type=trajectories.PadType.FUTURE)
-        logger.debug(f'Object "{object_id}" trajectory history padded points is: {n_hist_missing}.')
-        logger.debug(f'Object "{object_id}" trajectory ground truth padded points is: {n_gt_missing}.')
-
+        object_center_point = object_traj_hist[-1, :2].copy()  # mask values removed
         if object_distance_threshold is not None:
-            object_center_point = object_traj_hist[-1, :2]  # mask values removed
-            alpha_x = np.abs(object_center_point[0]) / agent_velocity[0]  # coordinates are already normalized (relative to agent)
-            alpha_y = np.abs(object_center_point[1]) / agent_velocity[1]
+            alpha_x = np.abs(object_center_point[0] - center_point[0]) / base_agent_velocity[0]
+            alpha_y = np.abs(object_center_point[1] - center_point[1]) / base_agent_velocity[1]
 
             if alpha_x > object_distance_threshold:
                 n_objects -= 1
@@ -182,6 +184,23 @@ def process_neighbors_data(
                 logger.debug(f'Object "{object_id} is too far on y axis: {alpha_y:.2f} > {object_distance_threshold}.')
                 continue
 
+        # normalize trajectories position - agent last observed value is (0, 0)
+        object_traj_hist -= center_point
+        object_traj_gt -= center_point
+
+        # normalize trajectories direction - agent last observed value is on y-axis
+        object_traj_hist = trajectories.rotate_points(object_traj_hist, agent_angle)
+        object_traj_gt = trajectories.rotate_points(object_traj_gt, agent_angle)
+
+        # pad trajectories
+        object_traj_hist, n_hist_missing = trajectories.pad_trajectory(object_traj_hist, trajectory_history_window_length,
+                                                                       pad_type=trajectories.PadType.PAST)
+        object_traj_gt, n_gt_missing = trajectories.pad_trajectory(object_traj_gt, trajectory_future_window_length,
+                                                                   pad_type=trajectories.PadType.FUTURE)
+        logger.debug(f'Object "{object_id}" trajectory history padded points is: {n_hist_missing}.')
+        logger.debug(f'Object "{object_id}" trajectory ground truth padded points is: {n_gt_missing}.')
+
+        objects_center_points.append(object_center_point)
         objects_traj_hist_list.append(object_traj_hist)
         objects_traj_gt_list.append(object_traj_gt)
 
@@ -189,13 +208,10 @@ def process_neighbors_data(
         # No objects found, return empty arrays
         objects_traj_hists = np.zeros(shape=(0, trajectory_history_window_length, 3))
         objects_traj_gts = np.zeros(shape=(0, trajectory_future_window_length, 3))
-        objects_center_points = []
         return objects_traj_hists, objects_traj_gts, objects_center_points
 
     objects_traj_hists = np.stack(objects_traj_hist_list)
     objects_traj_gts = np.stack(objects_traj_gt_list)
-    # mask feature is dropped, coordinates are denormalized
-    objects_center_points = [oth[-1, :2] + center_point for oth in objects_traj_hist_list]
 
     logger.debug(f'Total number of neighbors is {n_objects}.')
     # Asserts
@@ -256,6 +272,7 @@ def process_lane_data(
     avm: ArgoverseMap,
     city: str,
     agent_center_point: np.ndarray,
+    agent_angle: float,
     agent_velocity: np.ndarray,
     radius_scale: float,
     objects_center_points: List[np.ndarray],
@@ -268,6 +285,7 @@ def process_lane_data(
         avm: ArgoverseMap API
         city: Map (Miami or Pittsburg)
         agent_center_point: Agent center point
+        agent_angle: Rotation angle (normalization)
         agent_velocity: Agent velocity is used for radius approximation
         radius_scale: Radius scale (multiplied with agent_velocity)
         objects_center_points: Object center points
@@ -312,7 +330,9 @@ def process_lane_data(
     for lsi in lane_segment_ids:
         # extract polygon
         centerline = avm.get_lane_segment_centerline(lsi, city)[:, :-1]  # Ignoring height coordinate
+
         centerline -= agent_center_point  # normalize coordinates
+        centerline = trajectories.rotate_points(centerline, agent_angle)  # normalize angle
 
         # extract metadata features
         is_intersetion = avm.lane_is_in_intersection(lsi, city)
@@ -340,32 +360,36 @@ def process_lane_data(
 def find_and_process_centerline_features(
     avm: ArgoverseMap,
     city: str,
-    agent_traj_hist: np.ndarray,
+    base_agent_traj_hist: np.ndarray,
     center_point: np.ndarray,
+    agent_angle: float,
     trajectory_future_window_length: int,
-    centerline_radius_scale: float
+    centerline_radius_scale: float,
+    min_lane_radius: float
 ) -> Optional[np.ndarray]:
     """
-
     Args:
         avm: ArgoverseMap API
         city: Map (Miami of Pittsburg)
-        agent_traj_hist: Agent trajectory history (used to find candidate centerlines)
+        base_agent_traj_hist: Unormalized agent trajectory history (used to find candidate centerlines)
         center_point: Center point
+        agent_angle: Rotation angle (normalization)
         trajectory_future_window_length: Trajectory future window length (parameter)
         centerline_radius_scale: Maximum centerline distance (parameter)
+        min_lane_radius: Minimum value for lane radius
 
     Returns:
         - None if not centerlines are found
         - Centerlines with normalized x and y coordinates
     """
-    agent_traj_hist_denormalized = agent_traj_hist[:, :2].copy() + center_point
-    agent_velocity = agent_traj_hist[-1, :2] - agent_traj_hist[-2, :2]  # velocity is here approximated using distance in last step
+    agent_velocity = base_agent_traj_hist[-1, :2] - base_agent_traj_hist[-2, :2]  # velocity is here approximated using distance in last step
     sampled_velocities = trajectories.sample_velocities(
         raw_velocity=agent_velocity,
-        intensity=[0.5, 1.0, 2.0],
-        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2])
-    radius = np.sqrt(agent_velocity[0] ** 2 + agent_velocity[1] ** 2) * centerline_radius_scale
+        intensity_mult=[0.5, 1.0, 2.0],
+        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2],
+        intensity_add=[0.0, 0.05, 0.1]
+    )
+    radius = max(min_lane_radius, np.sqrt(agent_velocity[0] ** 2 + agent_velocity[1] ** 2) * centerline_radius_scale)
 
     # Sample centerlines using naive future traj approximation (oversampled)
     sampled_centerlines = []
@@ -378,7 +402,7 @@ def find_and_process_centerline_features(
             pass  # No centerlines were found
 
     # Also sample centerlines using history traj
-    cs = avm.get_candidate_centerlines_for_traj(agent_traj_hist_denormalized, city, max_search_radius=radius)
+    cs = avm.get_candidate_centerlines_for_traj(base_agent_traj_hist, city, max_search_radius=radius)
     sampled_centerlines.append(cs)
 
     # Merge all centerlines
@@ -406,8 +430,9 @@ def find_and_process_centerline_features(
     n_found_centerlines = n_centerlines
     logger.debug(f'Found {n_found_centerlines} candidate centerlines.')
 
-    # normalize centerline trajectories
+    # normalize centerline trajectories (direction and position)
     centerlines = [(c - center_point) for c in centerlines]
+    centerlines = [trajectories.rotate_points(c, agent_angle) for c in centerlines]
 
     # pad centerline trajectories
     centerlines = [c[:trajectory_future_window_length] for c in centerlines]
@@ -491,7 +516,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
 
         try:
             # Extract features
-            agent_traj_hist, agent_traj_gt, center_point, agent_velocity = process_agent_data(
+            agent_traj_hist, agent_traj_gt, center_point, base_agent_velocity, agent_y_angle, base_agent_traj_hist = process_agent_data(
                 df=seq_df,
                 trajectory_history_window_length=self._config.global_parameters.trajectory_history_window_length,
                 trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
@@ -501,9 +526,10 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
             objects_traj_hists, objects_traj_gts, objects_center_points = process_neighbors_data(
                 df=seq_df,
                 center_point=center_point,
+                agent_angle=agent_y_angle,
                 agent_traj_hist=agent_traj_hist,
                 agent_traj_gt=agent_traj_gt,
-                agent_velocity=agent_velocity,
+                base_agent_velocity=base_agent_velocity,
                 object_distance_threshold=self._parameters.object_distance_threshold,
                 trajectory_history_window_length=self._config.global_parameters.trajectory_history_window_length,
                 trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
@@ -517,7 +543,8 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
                 avm=self._avm,
                 city=city,
                 agent_center_point=center_point,
-                agent_velocity=agent_velocity,
+                agent_angle=agent_y_angle,
+                agent_velocity=base_agent_velocity,
                 radius_scale=self._parameters.lane_radius_scale,
                 objects_center_points=objects_center_points,
                 add_neighboring_lanes=self._parameters.add_neighboring_lanes
@@ -526,10 +553,12 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
             centerline_candidate_features = find_and_process_centerline_features(
                 avm=self._avm,
                 city=city,
-                agent_traj_hist=agent_traj_hist,
+                base_agent_traj_hist=base_agent_traj_hist,
                 center_point=center_point,
+                agent_angle=agent_y_angle,
                 trajectory_future_window_length=self._config.global_parameters.trajectory_future_window_length,
-                centerline_radius_scale=self._parameters.centerline_radius_scale
+                centerline_radius_scale=self._parameters.centerline_radius_scale,
+                min_lane_radius=self._parameters.min_lane_radius
             )
 
             # Update variance stats
@@ -540,6 +569,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
                 id=sequence_name,
                 city=city,
                 center_point=center_point,
+                angle=agent_y_angle,
                 agent_traj_hist=agent_traj_hist,
                 agent_traj_gt=agent_traj_gt,
                 objects_traj_hists=objects_traj_hists,

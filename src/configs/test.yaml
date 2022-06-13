@@ -15,7 +15,8 @@ data_process:
     object_distance_threshold: 100
     centerline_radius_scale: 3.0
     add_neighboring_lanes: True
-    lane_radius_scale: 3.0
+    lane_radius_scale: 5.0
+    min_lane_radius: 30.0
 raster:
   data_process:
     input_path: 'test_data/internal'
@@ -36,7 +37,7 @@ graph:
     input_path: 'test_data/internal'
     output_path: 'test_data/internal_graph'
     max_polyline_segments: 20
-    max_polylines: 200
+    max_polylines: 250
     normalization_parameter: 25.0
     visualize: True
   train:
@@ -44,13 +45,13 @@ graph:
     output_path: 'model_storage/vectornet'
     visualize: True
     parameters:
-      epochs: 350
+      epochs: 100
       n_targets: 6
       anchor_generator_lr: 0.0001
-      anchor_generator_sched_step: 100
+      anchor_generator_sched_step: 30
       anchor_generator_sched_gamma: 0.1
       trajectory_forecaster_lr: 0.001
-      huber_delta: 0.16
+      huber_delta: 0.04
 model:
   name: 'vectornet'
   config_path: 'configs/model_config.yaml'
