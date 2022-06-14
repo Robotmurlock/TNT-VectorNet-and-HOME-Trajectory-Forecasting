@@ -39,16 +39,18 @@ def evaluate(
     model.to(device)
     model.eval()
     with torch.no_grad():
-        for scenario in tqdm(dataset, total=len(dataset)):
+        for scenario_index in tqdm(range(len(dataset))):
+            scenario = dataset.scenario(scenario_index)
             scenario_metrics = {'scenario_city': scenario.city, 'scenario_id': scenario.id}
 
             # forecasting
             polylines, anchors, _, gt_traj = \
-                scenario.inputs.to(device), scenario.target_proposals.to(device), \
+                scenario.inputs.to(device).unsqueeze(0), scenario.target_proposals.to(device).unsqueeze(0), \
                 scenario.target_ground_truth.to(device), scenario.ground_truth_trajectory_difference.to(device)
-            gt_traj = gt_traj.cumsum(axis=0)  # transform differences to trajectory
 
-            forecasts, probas, targets = model(polylines, anchors)
+            forecasts, _, targets, anchors = model(polylines, anchors)
+            forecasts, targets, anchors = forecasts[0], targets[0], anchors[0]
+            gt_traj = gt_traj.cumsum(axis=0)  # transform differences to trajectory
             forecasts_scaled = forecasts * scale
             gt_traj_scaled = gt_traj * scale
 
@@ -57,6 +59,7 @@ def evaluate(
             agent_min_fde, _ = metrics.minFDE(forecasts_scaled, gt_traj_scaled)
             agent_min_ade = agent_min_ade.detach().item()
             agent_min_fde = agent_min_fde.detach().item()
+            print(f'[{scenario.dirname}]: minADE={agent_min_ade:.2f}, minFDE={agent_min_fde:.2f}')
 
             # Deducing error class
             scenario_metrics['agent'] = {
@@ -78,6 +81,7 @@ def evaluate(
                 # Visualization
                 fig = scenario.visualize(
                     fig=fig,
+                    chosen_anchors=anchors.cpu().numpy(),
                     agent_traj_forecast=forecasts.cpu().numpy(),
                     targets_prediction=targets.cpu().numpy(),
                     scale=scale

@@ -94,6 +94,7 @@ class GraphScenarioData:
     def visualize(
         self,
         fig: Optional[plt.Figure] = None,
+        chosen_anchors: Optional[np.ndarray] = None,
         targets_prediction: Optional[np.ndarray] = None,
         agent_traj_forecast: Optional[np.ndarray] = None,
         scale: Optional[float] = None
@@ -109,6 +110,7 @@ class GraphScenarioData:
         Args:
             fig: Figure (if None then new one is created otherwise old one is cleared)
                 Make sure to always use same figure instead of creating multiple ones
+            chosen_anchors: Chosen target anchors
             targets_prediction: Targets prediction
             agent_traj_forecast: Forecast trajectories
             scale: Scale map
@@ -150,6 +152,12 @@ class GraphScenarioData:
             targets_prediction = targets_prediction * scale if scale is not None else targets_prediction
             plt.scatter(targets_prediction[:, 0], targets_prediction[:, 1],
                         color='slateblue', label='target predictions', s=200, zorder=10)
+
+        if chosen_anchors is not None:
+            # Plot prediction anchor points
+            chosen_anchors = chosen_anchors * scale if scale is not None else chosen_anchors
+            plt.scatter(chosen_anchors[:, 0], chosen_anchors[:, 1],
+                        color='orange', label='chosen anchors', s=150, zorder=30)
 
         # Plot anchor points and ground truth target point
         anchors = self.anchors * scale if scale is not None else self.anchors

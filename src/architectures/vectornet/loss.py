@@ -9,9 +9,9 @@ class TargetsLoss(nn.Module):
         super(TargetsLoss, self).__init__()
         self.alpha = alpha
         self._ce = nn.BCEWithLogitsLoss()
-        self._huber = nn.HuberLoss(delta=delta, reduction='sum')
+        self._huber = nn.HuberLoss(delta=delta, reduction='mean')
 
-    def forward(self, targets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+    def forward(self, anchors: torch.Tensor, offsets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         """
         Loss1 := CrossEntropyLoss(confidences, closest_target_index)
             Predicted target (anchor + offsets) that is the closest to ground truth point is correct class label
@@ -27,28 +27,34 @@ class TargetsLoss(nn.Module):
         Returns: Loss1 + alpha * Loss2
         """
         # Finding the closest point
-        distances = torch.sqrt((targets[..., 0] - ground_truth[..., 0]) ** 2 + (targets[..., 1] - ground_truth[..., 1]) ** 2)
+        ground_truth_expanded = ground_truth.unsqueeze(1).repeat(1, anchors.shape[1], 1)
+        distances = torch.sqrt((anchors[..., 0] - ground_truth_expanded[..., 0]) ** 2 + (anchors[..., 1] - ground_truth_expanded[..., 1]) ** 2)
         closest_target_index = torch.argmin(distances, dim=-1)
-        closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[0]).float()
+        closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
 
+        # confidence loss
         ce_loss = self._ce(confidences, closest_target_index_onehot)  # closest target should have confidence 1 and all others should have 0
-        huber_loss = self._huber(targets[..., closest_target_index, :], ground_truth)  # MSE between the closest target and ground truth (end point)
+
+        # offsets loss
+        closest_anchors = torch.stack([anchors[index, closest_target_index[index], :] for index in range(anchors.shape[0])])
+        closests_anchors_offsets = torch.stack([offsets[index, closest_target_index[index], :] for index in range(offsets.shape[0])])
+        ground_truth_offset = ground_truth - closest_anchors
+
+        huber_loss = self._huber(closests_anchors_offsets, ground_truth_offset)  # MSE between the closest target and ground truth (end point)
+
+        # total loss
         total_loss = ce_loss + self.alpha * huber_loss
 
         return total_loss, ce_loss, huber_loss
 
 
 class ForecastingLoss(nn.Module):
-    def __init__(self, alpha: float = 1.0, delta: float = 0.16):
+    def __init__(self, delta: float = 0.16):
         super(ForecastingLoss, self).__init__()
-        self.alpha = alpha
-        self._ce = nn.CrossEntropyLoss()
         self._huber = nn.HuberLoss(delta=delta)
 
-        self._softmax = nn.Softmax(dim=-1)
-
     def forward(self, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
-        gt_traj_expanded = gt_traj.unsqueeze(0).expand(forecasts.shape[0], gt_traj.shape[-2], 2)
+        gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
         huber_loss = self._huber(forecasts, gt_traj_expanded)
         return huber_loss
 
@@ -56,16 +62,35 @@ class ForecastingLoss(nn.Module):
 def main():
     # Test targets loss
     t_criteria = TargetsLoss()
-    anchors = torch.randn(1, 4, 2)
-    confidences = torch.randn(1, 4)
-    y = torch.randn(1, 1, 2)
+    anchors = torch.tensor([
+        [[0, 1], [0, 0]],
+        [[0, 0.1], [0, 0]],
+    ], dtype=torch.float32)
+    offsets = torch.tensor([
+        [[0, 0.1], [0, 0]],
+        [[0, 0.2], [0, 0]],
+    ], dtype=torch.float32)
+    confidences = torch.tensor([
+        [100.0, 0],
+        [100, 0.1]
+    ])
+    gt_pos = torch.tensor([
+        [0, 1.1],
+        [0, 0.3],
+    ], dtype=torch.float32)
 
-    print(t_criteria(anchors, confidences, y))
+    print(t_criteria(anchors, offsets, confidences, gt_pos))
 
     # Test forecasting loss
     f_criteria = ForecastingLoss()
-    forecasts = torch.randn(10, 5, 2)
-    ground_truth = torch.randn(5, 2)
+    forecasts = torch.tensor([
+        [[[0, 0], [1, 1], [2, 2]], [[0, 0], [1, 1], [2, 2]]],
+        [[[0, 0], [2, 2], [4, 4]], [[0, 0], [2, 2], [4, 4]]]
+    ], dtype=torch.float32)
+    ground_truth = torch.tensor([
+        [[0, 0], [1, 1], [2, 2]],
+        [[0, 0], [2, 2], [4, 4]],
+    ], dtype=torch.float32)
 
     print(f_criteria(forecasts, ground_truth))
 
