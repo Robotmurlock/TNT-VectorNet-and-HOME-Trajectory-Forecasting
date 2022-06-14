@@ -4,10 +4,10 @@ from pathlib import Path
 import configparser
 from utils import steps
 from datasets.vectornet_dataset import VectorNetScenarioDataset
-from datasets.data_models import GraphScenarioData
 from architectures.vectornet import TargetsLoss, TargetGenerator, TrajectoryForecaster, ForecastingLoss
 
 from torch import optim
+from torch.utils.data import DataLoader
 import torch
 import logging
 from tqdm import tqdm
@@ -19,10 +19,11 @@ def run(config: configparser.GlobalConfig):
     train_config = config.graph.train
     input_path = os.path.join(steps.SOURCE_PATH, config.graph.train.input_path)
 
-    dataset = VectorNetScenarioDataset(input_path, augment=True)
+    dataset = VectorNetScenarioDataset(input_path, device=device)
+    loader = DataLoader(dataset, batch_size=1)
 
     # Models
-    anchor_generator = TargetGenerator(polyline_features=14, device=device).to(device)
+    anchor_generator = TargetGenerator(cluster_size=20, polyline_features=14, device=device).to(device)
     forecaster = TrajectoryForecaster(n_features=256, trajectory_length=config.global_parameters.trajectory_future_window_length).to(device)
 
     # Loss functions
@@ -45,21 +46,18 @@ def run(config: configparser.GlobalConfig):
         total_ag_huber_loss = 0.0
         total_f_huber_loss = 0.0
 
-        for data in dataset:
+        for polylines, anchors, ground_truth, gt_traj in loader:
             ag_optimizer.zero_grad()
             f_optimizer.zero_grad()
 
-            polylines, anchors, ground_truth, gt_traj = \
-                data.inputs.to(device), data.target_proposals.to(device), \
-                data.target_ground_truth.to(device), data.ground_truth_trajectory_difference.to(device)
-            features, targets, confidences = anchor_generator(polylines, anchors)
+            features, offsets, confidences = anchor_generator(polylines, anchors)
 
             # anchor loss
-            loss, ag_ce_loss, ag_huber_loss = ag_criteria(targets, confidences, ground_truth)
+            loss, ag_ce_loss, ag_huber_loss = ag_criteria(anchors, offsets, confidences, ground_truth)
 
             # trajectory losses
             # Using ground truth instead targets during training
-            ground_truth_expanded = ground_truth.unsqueeze(0).expand(n_targets, 2)
+            ground_truth_expanded = ground_truth.unsqueeze(1).repeat(1, n_targets, 1)
             forecasted_trajectories = forecaster(features, ground_truth_expanded)
 
             # loss
@@ -80,7 +78,7 @@ def run(config: configparser.GlobalConfig):
 
         logging.info(f'[Epoch-{epoch}]: weighted-loss={(total_loss / len(dataset)):.2f}, '
                      f'target-huber={total_ag_huber_loss / len(dataset):.6f}, '
-                     f'target-ce={total_ag_ce_loss / len(dataset):.2f}, '
+                     f'target-ce={total_ag_ce_loss / len(dataset):.4f}, '
                      f'traj-huber={total_f_huber_loss / len(dataset):.6f}')
 
     model_path = os.path.join(steps.SOURCE_PATH, config.graph.train.output_path, 'model')
@@ -90,30 +88,6 @@ def run(config: configparser.GlobalConfig):
 
     if not train_config.visualize:
         return
-
-    fig = None
-    anchor_generator.eval()
-    forecaster.eval()
-    with torch.no_grad():
-        for scenario in tqdm(dataset, total=len(dataset)):
-            scenario: GraphScenarioData
-
-            polylines, anchors, ground_truth, gt_traj = \
-                scenario.inputs.to(device), scenario.target_proposals.to(device), \
-                scenario.target_ground_truth.to(device), scenario.ground_truth_trajectory_difference.to(device)
-            features, targets, confidences = anchor_generator(polylines, anchors)
-
-            filter_indexes = torch.argsort(confidences, descending=True)[:n_targets]
-            filtered_targets = targets[filter_indexes]
-            forecasted_trajectories = forecaster(features, filtered_targets)
-
-            scenario_viz_path = os.path.join(steps.SOURCE_PATH, config.graph.train.output_path, 'visualization')
-            Path(scenario_viz_path).mkdir(parents=True, exist_ok=True)
-            fig = scenario.visualize(
-                fig=fig,
-                targets_prediction=filtered_targets.detach().cpu().numpy(),
-                agent_traj_forecast=forecasted_trajectories.detach().cpu().numpy().cumsum(axis=1))
-            fig.savefig(os.path.join(scenario_viz_path, f'{scenario.dirname}.png'))
 
 
 if __name__ == '__main__':

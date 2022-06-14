@@ -12,6 +12,7 @@ from datasets.data_models import ScenarioData, GraphScenarioData, ObjectType
 
 logger = logging.getLogger('DataGraph')
 random.seed(42)
+np.random.seed(42)
 
 
 def create_polyline(polyline_data: np.ndarray, object_type: ObjectType, max_segments: int) -> np.ndarray:
@@ -100,68 +101,43 @@ def create_lane_polylines(lane_features: np.ndarray, max_segments: int) -> List[
             for object_index in range(lane_features.shape[0])]
 
 
-def sample_lane_points(center: np.ndarray, points: np.ndarray, n: int, threshold: float = 0.25) -> np.ndarray:
-    """
-    Samples points from lanes and objects based on distance to center point where center point is estimated
-    agent position after time t with some approximated velocity
-
-    Args:
-        center: Approximated target position
-        points: All points on
-        n: Number of lane points to sample
-        threshold: Allowed distance between target points
-
-    Returns: Sampled points from lanes and objects as targets
-    """
-    distances2 = (points[:, 0] - center[0]) ** 2 + (points[:, 1] - center[1]) ** 2
-    indexes = np.argsort(distances2)
-    sampled_indexes = [indexes[0]]
-    for ind in indexes[1:]:
-        if len(sampled_indexes) >= n:
-            break
-
-        skip = False
-        for sind in sampled_indexes:
-            if np.sqrt((points[ind, 0] - points[sind, 0]) ** 2 + (points[ind, 1] - points[sind, 1]) ** 2) <= threshold:
-                skip = True
-                break
-        if skip:
-            continue
-
-        sampled_indexes.append(ind)
-
-    if len(sampled_indexes) < n:
-        missing_indexes = n - len(sampled_indexes)
-        logger.debug(f'Number of missing indices: {missing_indexes}')
-        unused_indexes = list(set(range(distances2.points[0])) - set(sampled_indexes))
-        random_indexes = random.choices(unused_indexes, k=missing_indexes)
-        sampled_indexes = sampled_indexes + random_indexes
-
-    return points[sampled_indexes]
-
-
-def sample_anchor_points(lane_points: np.ndarray, agent_traj_hist: np.ndarray, future_traj_length: int) -> np.ndarray:
+def sample_anchor_points(lane_points: np.ndarray, sample_size: int, threshold: float) -> np.ndarray:
     """
     Sample anchor points from lane points values and agent points values (positions)
 
     Args:
         lane_points: All lane points
-        agent_traj_hist: All agent points
-        future_traj_length: Future trajectory length
+        sample_size: TODO
+        threshold: TODO
 
     Returns: Anchors (targets)
     """
-    # Using last two points to approximate velocity gives better results than average of whole trajectory
-    velocity = agent_traj_hist[-1, :] - agent_traj_hist[-2, :]
-    sampled_velocities = trajectories.sample_velocities(
-        raw_velocity=velocity,
-        intensity_mult=[0.5, 1.0, 2.0],
-        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2],
-        intensity_add=[0.0, 0.05, 0.1]
-    )
-    sampled_forecast_centers = [ss * future_traj_length for ss in sampled_velocities]
-    sampled_lane_points = [sample_lane_points(sfc, lane_points, 5) for sfc in sampled_forecast_centers]
-    return np.vstack(sampled_lane_points)
+    n_points = lane_points.shape[0]
+    np.random.shuffle(lane_points)
+    assert n_points >= sample_size, 'Not enough points!'
+    sampled_point_indices = []
+
+    next_point_index = 0
+    while len(sampled_point_indices) < sample_size and next_point_index < n_points:
+        point = lane_points[next_point_index, :]
+        skip = False
+        for sp_index in sampled_point_indices:
+            if np.sqrt((point[0] - lane_points[sp_index, 0]) ** 2 + (point[1] - lane_points[sp_index, 1]) ** 2) <= threshold:
+                skip = True
+                break
+
+        if not skip:
+            sampled_point_indices.append(next_point_index)
+        next_point_index += 1
+
+    if len(sampled_point_indices) < sample_size:
+        missing_indices = sample_size - len(sampled_point_indices)
+        all_indices = list(range(n_points))
+        unused_indices = list(set(all_indices) - set(sampled_point_indices))
+        chosen_unused_indices = random.choices(unused_indices, k=missing_indices)
+        sampled_point_indices.extend(chosen_unused_indices)
+
+    return np.stack(lane_points[sampled_point_indices])
 
 
 def anchor_min_error(anchors: np.ndarray, ground_truth: np.ndarray) -> np.ndarray:
@@ -244,15 +220,20 @@ def run(config: configparser.GlobalConfig):
                      for p in polylines]
 
         # create anchors
-        anchors = sample_anchor_points(np.vstack(candidate_polylines)[:, :2], scenario.agent_traj_hist, scenario.agent_traj_gt.shape[0])
+        anchors = sample_anchor_points(np.vstack(candidate_polylines)[:, :2].copy(), sample_size=120, threshold=0.2)
 
         # filter polylines
-        polylines = sorted(polylines, key=polyline_distance_from_center)
         polylines = polylines[:dpg_config.max_polylines]
 
         # normalize polylines and anchors
         polylines = [trajectories.normalize_polyline(polyline, last_index=4, sigma=sigma) for polyline in polylines]
+
         polylines = np.stack(polylines)  # convert to numpy
+
+        # stack polylines
+        missing_polylines = max(0, dpg_config.max_polylines - polylines.shape[0])
+        polylines = np.vstack([polylines, np.zeros([missing_polylines, *polylines.shape[1:]])])
+
         agent_traj_gt_normalized = trajectories.normalize_polyline(scenario.agent_traj_gt, last_index=2, sigma=sigma)
         objects_traj_gts_normalized = trajectories.normalize_polyline(scenario.objects_traj_gts, last_index=2, sigma=sigma)
         anchors = trajectories.normalize_polyline(anchors, last_index=2, sigma=sigma)

@@ -37,7 +37,7 @@ graph:
     input_path: 'test_data/internal'
     output_path: 'test_data/internal_graph'
     max_polyline_segments: 20
-    max_polylines: 250
+    max_polylines: 300
     normalization_parameter: 25.0
     visualize: True
   train:
@@ -45,10 +45,10 @@ graph:
     output_path: 'model_storage/vectornet'
     visualize: True
     parameters:
-      epochs: 100
+      epochs: 250
       n_targets: 6
-      anchor_generator_lr: 0.0001
-      anchor_generator_sched_step: 30
+      anchor_generator_lr: 0.01
+      anchor_generator_sched_step: 50
       anchor_generator_sched_gamma: 0.1
       trajectory_forecaster_lr: 0.001
       huber_delta: 0.04

@@ -16,7 +16,7 @@ def run():
 
     model = model_factory(config.model.name, params=params)
     model.load_state(os.path.join(steps.SOURCE_PATH, config.evaluation.model_path))
-    dataset = VectorNetScenarioDataset(os.path.join(steps.SOURCE_PATH, config.evaluation.input_path))
+    dataset = VectorNetScenarioDataset(os.path.join(steps.SOURCE_PATH, config.evaluation.input_path), device='cuda')
     eval.evaluate(
         model=model,
         dataset=dataset,

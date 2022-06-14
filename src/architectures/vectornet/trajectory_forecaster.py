@@ -15,10 +15,10 @@ class TrajectoryForecaster(nn.Module):
         self._lrelu = nn.LeakyReLU(0.1)
 
     def forward(self, features: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        n_targets = targets.shape[0]
+        n_targets = targets.shape[1]
 
         # merge features with targets
-        expanded_features = features.unsqueeze(0).repeat(n_targets, 1)
+        expanded_features = features.unsqueeze(1).repeat(1, n_targets, 1)
         inputs = torch.concat([expanded_features, targets], dim=-1)
 
         out = self._lrelu(self._ln1(self._linear(inputs)))
@@ -31,8 +31,8 @@ class TrajectoryForecaster(nn.Module):
 
 def test():
     forecaster = TrajectoryForecaster(16, 10)
-    features = torch.randn(16)
-    targets = torch.randn(6, 2)
+    features = torch.randn(4, 16)
+    targets = torch.randn(4, 6, 2)
     trajectories = forecaster(features, targets)
     print(trajectories.shape)
 

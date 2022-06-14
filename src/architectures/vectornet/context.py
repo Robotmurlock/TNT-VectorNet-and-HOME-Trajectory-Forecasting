@@ -6,7 +6,7 @@ from typing import List, Union
 
 
 class VectorNet(nn.Module):
-    def __init__(self, polyline_features: int, device: Union[str, torch.device]):
+    def __init__(self, cluster_size: int, polyline_features: int, device: Union[str, torch.device]):
         """
         Extracts context from all polyline information
 
@@ -14,23 +14,23 @@ class VectorNet(nn.Module):
             polyline_features: Number of features per polyline point
         """
         super(VectorNet, self).__init__()
-        self._polyline_encoder = PGN(in_features=polyline_features, n_layers=4, device=device)
+        self._polyline_encoder = PGN(cluster_size=cluster_size, in_features=polyline_features, n_layers=4, device=device)
         self._global = MultiHeadAttention(in_features=self._polyline_encoder.out_features, head_num=14, activation=nn.ReLU())
 
-        self._flatten = nn.Flatten(start_dim=0)
         self._linear = nn.Linear(224, 128)
         self._relu = nn.ReLU()
 
     def forward(self, polylines: List[torch.Tensor]) -> torch.Tensor:
         features = self._polyline_encoder(polylines)
-        features = self._global(features.unsqueeze(0)).squeeze(0)
-        features = torch.max(self._relu(self._linear(features)), dim=0)[0]
+        features = self._global(features)
+        features = self._relu(self._linear(features))
+        features = features[:, 0, :]
         return features
 
 
 def main():
-    vn = VectorNet(polyline_features=9, device='cpu')
-    polylines = torch.randn(200, 20, 9)
+    vn = VectorNet(cluster_size=20, polyline_features=14, device='cpu')
+    polylines = torch.randn(4, 200, 20, 14)
     print(vn(polylines).shape)
 
 
