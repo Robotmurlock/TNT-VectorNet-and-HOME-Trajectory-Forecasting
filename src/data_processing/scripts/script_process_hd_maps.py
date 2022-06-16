@@ -1,11 +1,9 @@
-import multiprocessing
 import os
 from pathlib import Path
-from typing import Tuple, List, Optional, Any, Union, Set
+from typing import Tuple, List, Optional, Any, Union, Set, Collection
 import logging
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
@@ -588,33 +586,22 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
         data.save(self._output_path)
 
     def visualize(self, data: Any) -> None:
-        # Load process fig
-        pid = multiprocessing.current_process()
-        if pid not in self._fig_catalog:
-            self._fig_catalog[pid] = None
-        fig = self._fig_catalog[pid]
-
-        # Plot on figure
-        fig = data.visualize(fig)
+        self._fig = data.visualize(self._fig)
         figpath = os.path.join(self._output_path, data.dirname, 'scenario.png')
-        fig.savefig(figpath)
-
-        # Store process fig
-        self._fig_catalog[pid] = fig
+        self._fig.savefig(figpath)
 
 
-def avfl_dataloader(avfl: ArgoverseForecastingLoader):
-    """
-    Argoverse DataLoader wrapper
+class ArgoverseForecastingLoaderWrapper:
+    def __init__(self, avfl: ArgoverseForecastingLoader):
+        self._avfl = avfl
 
-    Args:
-        avfl: ArgoverseForecastingLoader
+    def __iter__(self):
+        for data in self._avfl:
+            sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
+            yield data.seq_df, sequence_name, data.city
 
-    Returns: Sequences (dataframe), sequence name, sequence city
-    """
-    for data in tqdm(avfl, total=len(avfl)):
-        sequence_name = os.path.basename(data.current_seq).split('.')[0]  # `path/.../1234.csv` -> `1234`
-        yield data.seq_df, sequence_name, data.city
+    def __len__(self):
+        return len(self._avfl)
 
 
 @time.timeit
@@ -636,7 +623,8 @@ def run(config: configparser.GlobalConfig):
         ds_path = os.path.join(datasets_path, split_name)
         output_path = os.path.join(outputs_path, split_name)
 
-        avfl = ArgoverseForecastingLoader(ds_path)
+        # noinspection PyTypeChecker
+        avfl_dataloader: Collection = ArgoverseForecastingLoaderWrapper(ArgoverseForecastingLoader(ds_path))
 
         Path(output_path).mkdir(parents=True, exist_ok=True)
         completed_sequences = set(os.listdir(output_path))
@@ -648,7 +636,7 @@ def run(config: configparser.GlobalConfig):
             completed_sequences=completed_sequences,
             visualize=config.data_process.visualize
         )
-        pipeline.run_pipeline(pipeline=hd_pipeline, data_iterator=avfl_dataloader(avfl), n_processes=config.data_process.n_processes)
+        pipeline.run_pipeline(pipeline=hd_pipeline, data_iterator=avfl_dataloader, n_processes=config.data_process.n_processes)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Any, Iterable
+from typing import Any, Collection
 from multiprocessing import Pool
+import logging
+from tqdm import tqdm
+
+
+logger = logging.getLogger('PipelineModule')
 
 
 class Pipeline(ABC):
@@ -17,8 +22,8 @@ class Pipeline(ABC):
         self._output_path = output_path
 
         # visualization support
-        self._fig_catalog = {}
-        self._visualize = visualize
+        self._fig = None
+        self.viz = visualize
 
     @abstractmethod
     def process(self, data: Any) -> Any:
@@ -62,11 +67,11 @@ class Pipeline(ABC):
             return
 
         self.save(data)
-        if self._visualize:
+        if self.viz:
             self.visualize(data)
 
 
-def run_pipeline(pipeline: Pipeline, data_iterator: Iterable, n_processes: int) -> None:
+def run_pipeline(pipeline: Pipeline, data_iterator: Collection, n_processes: int) -> None:
     """
     Runs pipeline in multiple processes
 
@@ -75,6 +80,14 @@ def run_pipeline(pipeline: Pipeline, data_iterator: Iterable, n_processes: int) 
         data_iterator: DataIterator
         n_processes: Number of processes
     """
+    if n_processes == 1:
+        logger.warning('Process is run sequentually because only one process is being used!')
+        for data in data_iterator:
+            pipeline.process_and_save(data)
+        return
+
+    assert not pipeline.viz, f'Data visualization is supported for only one process. Got {n_processes}.'
+
     with Pool(processes=n_processes) as pool:
-        for _ in pool.imap(pipeline.process_and_save, data_iterator):
+        for _ in tqdm(pool.imap(pipeline.process_and_save, data_iterator), total=len(data_iterator)):
             pass

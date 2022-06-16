@@ -1,14 +1,14 @@
 import os
 import logging
-from tqdm import tqdm
 import numpy as np
 from typing import List
 import random
 
-from utils import steps, trajectories
+from utils import steps, trajectories, time
 import configparser
 from datasets.data_models import ScenarioData, GraphScenarioData, ObjectType
 import conventions
+from data_processing import pipeline
 
 
 logger = logging.getLogger('DataGraph')
@@ -108,8 +108,8 @@ def sample_anchor_points(lane_points: np.ndarray, sample_size: int, threshold: f
 
     Args:
         lane_points: All lane points
-        sample_size: TODO
-        threshold: TODO
+        sample_size: Number of points to be sampled
+        threshold: Minimum distance between two points
 
     Returns: Anchors (targets)
     """
@@ -167,6 +167,95 @@ def polyline_distance_from_center(polyline: np.ndarray) -> np.ndarray:
     return np.mean(np.sqrt(polyline[:, 0] ** 2 + polyline[:, 1] ** 2))
 
 
+class GraphPipeline(pipeline.Pipeline):
+    def __init__(
+        self,
+        output_path: str,
+        config: configparser.GlobalConfig,
+        visualize: bool = False
+    ):
+        super().__init__(output_path=output_path, visualize=visualize)
+        self._config = config
+        self._dpg_config = config.graph.data_process
+        self._test = 0
+
+    def process(self, data: str) -> GraphScenarioData:
+        scenario = ScenarioData.load(data)
+        # create polylines
+        agent_polyline = create_polyline(
+            polyline_data=scenario.agent_traj_hist,
+            object_type=ObjectType.AGENT,
+            max_segments=self._dpg_config.max_polyline_segments)
+
+        neighbor_polylines = create_polylines(
+            polylines_data=scenario.objects_traj_hists,
+            object_type=ObjectType.NEIGHBOUR,
+            max_segments=self._dpg_config.max_polyline_segments)
+
+        lane_polylines = create_lane_polylines(
+            lane_features=scenario.lane_features,
+            max_segments=self._dpg_config.max_polyline_segments)
+
+        candidate_polylines = create_polylines(
+            polylines_data=scenario.centerline_candidate_features,
+            object_type=ObjectType.CANDIDATE_CENTERLINE,
+            max_segments=self._dpg_config.max_polyline_segments)
+
+        polylines = [agent_polyline] + neighbor_polylines + lane_polylines + candidate_polylines
+
+        # Pad all polylines to dimension (20, 9) where last dimension is mask
+        polylines = [trajectories.pad_trajectory(p, self._dpg_config.max_polyline_segments, trajectories.PadType.PAST)[0]
+                     for p in polylines]
+
+        # create anchors
+        anchors = sample_anchor_points(np.vstack(candidate_polylines)[:, :2].copy(), sample_size=120, threshold=0.2)
+
+        # filter polylines
+        polylines = polylines[:self._dpg_config.max_polylines]
+
+        # normalize polylines and anchors
+        polylines = [trajectories.normalize_polyline(polyline, last_index=4,
+                                                     sigma=self._dpg_config.normalization_parameter) for polyline in polylines]
+
+        polylines = np.stack(polylines)  # convert to numpy
+
+        # stack polylines
+        missing_polylines = max(0, self._dpg_config.max_polylines - polylines.shape[0])
+        polylines = np.vstack([polylines, np.zeros([missing_polylines, *polylines.shape[1:]])])
+
+        agent_traj_gt_normalized = trajectories.normalize_polyline(scenario.agent_traj_gt, last_index=2,
+                                                                   sigma=self._dpg_config.normalization_parameter)
+        objects_traj_gts_normalized = trajectories.normalize_polyline(scenario.objects_traj_gts, last_index=2,
+                                                                      sigma=self._dpg_config.normalization_parameter)
+        anchors = trajectories.normalize_polyline(anchors, last_index=2, sigma=self._dpg_config.normalization_parameter)
+
+        # Anchor quality analysis
+        anchor_error = anchor_min_error(anchors, agent_traj_gt_normalized[-1, :])
+        logger.debug(f'[{scenario.dirname}]: Closest anchor distance is: {anchor_error:.2f}')
+
+        graph_scenario = GraphScenarioData(
+            id=scenario.id,
+            city=scenario.city,
+            center_point=scenario.center_point,
+            polylines=polylines,
+            agent_traj_gt=agent_traj_gt_normalized,
+            objects_traj_gts=objects_traj_gts_normalized,
+            anchors=anchors,
+            ground_truth_point=agent_traj_gt_normalized[-1, :]
+        )
+
+        return graph_scenario
+
+    def save(self, data: GraphScenarioData) -> None:
+        data.save(self._output_path)
+
+    def visualize(self, data: GraphScenarioData) -> None:
+        self._fig = data.visualize(self._fig)
+        figpath = os.path.join(self._output_path, data.dirname, 'polylines.png')
+        self._fig.savefig(figpath)
+
+
+@time.timeit
 def run(config: configparser.GlobalConfig):
     """
     Converts vectorized structured data to vectorized polyline structured data
@@ -174,7 +263,6 @@ def run(config: configparser.GlobalConfig):
         config: Config
     """
     dpg_config = config.graph.data_process
-    sigma = dpg_config.normalization_parameter
     inputs_path = os.path.join(steps.SOURCE_PATH, dpg_config.input_path)
     outputs_path = os.path.join(steps.SOURCE_PATH, dpg_config.output_path)
 
@@ -186,91 +274,18 @@ def run(config: configparser.GlobalConfig):
 
         scenario_paths = [os.path.join(ds_path, dirname) for dirname in os.listdir(ds_path)]
         completed_scenarios = set(os.listdir(output_path) if os.path.exists(output_path) else [])
+        scenario_paths = list(set(scenario_paths) - set(completed_scenarios))
 
         logger.info(f'Found {len(scenario_paths)} scenarios for split {split_name}.')
 
-        fig = None
-        logger.info('Started datasets processing.')
-        total_anchor_error = 0.0
-        total_scenarios = 0
+        graph_pipeline = GraphPipeline(
+            output_path=output_path,
+            config=config,
+            visualize=dpg_config.visualize
+        )
+        pipeline.run_pipeline(pipeline=graph_pipeline, data_iterator=scenario_paths, n_processes=config.data_process.n_processes)
 
-        for scenario_path in tqdm(scenario_paths):
-            scenario = ScenarioData.load(scenario_path)
-            if scenario.dirname in completed_scenarios:
-                logger.debug(f'Already processed "{scenario.dirname}".')
-                continue
-
-            # create polylines
-            agent_polyline = create_polyline(
-                polyline_data=scenario.agent_traj_hist,
-                object_type=ObjectType.AGENT,
-                max_segments=dpg_config.max_polyline_segments)
-
-            neighbor_polylines = create_polylines(
-                polylines_data=scenario.objects_traj_hists,
-                object_type=ObjectType.NEIGHBOUR,
-                max_segments=dpg_config.max_polyline_segments)
-
-            lane_polylines = create_lane_polylines(
-                lane_features=scenario.lane_features,
-                max_segments=dpg_config.max_polyline_segments)
-
-            candidate_polylines = create_polylines(
-                polylines_data=scenario.centerline_candidate_features,
-                object_type=ObjectType.CANDIDATE_CENTERLINE,
-                max_segments=dpg_config.max_polyline_segments)
-
-            polylines = [agent_polyline] + neighbor_polylines + lane_polylines + candidate_polylines
-
-            # Pad all polylines to dimension (20, 9) where last dimension is mask
-            polylines = [trajectories.pad_trajectory(p, dpg_config.max_polyline_segments, trajectories.PadType.PAST)[0]
-                         for p in polylines]
-
-            # create anchors
-            anchors = sample_anchor_points(np.vstack(candidate_polylines)[:, :2].copy(), sample_size=120, threshold=0.2)
-
-            # filter polylines
-            polylines = polylines[:dpg_config.max_polylines]
-
-            # normalize polylines and anchors
-            polylines = [trajectories.normalize_polyline(polyline, last_index=4, sigma=sigma) for polyline in polylines]
-
-            polylines = np.stack(polylines)  # convert to numpy
-
-            # stack polylines
-            missing_polylines = max(0, dpg_config.max_polylines - polylines.shape[0])
-            polylines = np.vstack([polylines, np.zeros([missing_polylines, *polylines.shape[1:]])])
-
-            agent_traj_gt_normalized = trajectories.normalize_polyline(scenario.agent_traj_gt, last_index=2, sigma=sigma)
-            objects_traj_gts_normalized = trajectories.normalize_polyline(scenario.objects_traj_gts, last_index=2, sigma=sigma)
-            anchors = trajectories.normalize_polyline(anchors, last_index=2, sigma=sigma)
-
-            # Anchor quality analysis
-            anchor_error = anchor_min_error(anchors, agent_traj_gt_normalized[-1, :])
-            logger.debug(f'[{scenario.dirname}]: Closest anchor distance is: {anchor_error:.2f}')
-            total_anchor_error += anchor_error
-            total_scenarios += 1
-
-            graph_scenario = GraphScenarioData(
-                id=scenario.id,
-                city=scenario.city,
-                center_point=scenario.center_point,
-                polylines=polylines,
-                agent_traj_gt=agent_traj_gt_normalized,
-                objects_traj_gts=objects_traj_gts_normalized,
-                anchors=anchors,
-                ground_truth_point=agent_traj_gt_normalized[-1, :]
-            )
-            graph_scenario.save(output_path)
-
-            if dpg_config.visualize:
-                fig = graph_scenario.visualize(fig)
-                fig.savefig(os.path.join(output_path, graph_scenario.dirname, 'polylines.png'))
-
-        if total_scenarios > 0:
-            logger.info(f'Average anchor error is: {total_anchor_error / total_scenarios:.2f}')
-        else:
-            logger.info('No scenarios processed.')
+        logger.info(f'Started datasets processing for {split_name}.')
 
 
 if __name__ == '__main__':

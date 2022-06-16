@@ -30,7 +30,8 @@ def run():
             output_path=os.path.join(outputs_path, split_name),
             device='cuda',
             visualize=config.evaluation.visualize,
-            scale=config.graph.data_process.normalization_parameter
+            scale=config.graph.data_process.normalization_parameter,
+            title=split_name
         )
 
 
