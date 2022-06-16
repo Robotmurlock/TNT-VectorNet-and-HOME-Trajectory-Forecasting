@@ -41,7 +41,7 @@ graph:
     normalization_parameter: 25.0
     visualize: True
   train:
-    input_path: 'test_data/internal_graph'
+    input_path: 'test_data/internal_graph/train'
     output_path: 'model_storage/vectornet'
     visualize: True
     parameters:
