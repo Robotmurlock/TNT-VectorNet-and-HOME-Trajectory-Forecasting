@@ -94,4 +94,3 @@ def config_from_yaml(path: str) -> GlobalConfig:
     with open(path, 'r', encoding='utf-8') as file_stream:
         raw = yaml.safe_load(file_stream)
     return dacite.from_dict(data_class=GlobalConfig, data=raw)
-

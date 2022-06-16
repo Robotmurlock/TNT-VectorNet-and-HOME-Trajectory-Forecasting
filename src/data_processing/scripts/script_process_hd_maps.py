@@ -14,6 +14,7 @@ from utils import steps, trajectories, lists, time
 from data_processing import exceptions, pipeline
 from datasets.data_models.scenario import ScenarioData
 import configparser
+import conventions
 
 
 logger = logging.getLogger('DataProcess')
@@ -624,23 +625,30 @@ def run(config: configparser.GlobalConfig):
     Args:
         config: Congiruation
     """
-    dataset_path = os.path.join(steps.SOURCE_PATH, config.data_process.input_path)
-    output_path = os.path.join(steps.SOURCE_PATH, config.data_process.output_path)
-
-    avfl = ArgoverseForecastingLoader(dataset_path)
     avm = ArgoverseMap()
+    datasets_path = os.path.join(steps.SOURCE_PATH, config.data_process.input_path)
+    outputs_path = os.path.join(steps.SOURCE_PATH, config.data_process.output_path)
 
-    Path(output_path).mkdir(parents=True, exist_ok=True)
-    completed_sequences = set(os.listdir(output_path))
+    assert set(conventions.SPLIT_NAMES).issubset(set(os.listdir(datasets_path))), f'Format is not valid. Required splits: {conventions.SPLIT_NAMES}'
 
-    hd_pipeline = ArgoverseHDPipeline(
-        output_path=output_path,
-        config=config,
-        argoverse_map=avm,
-        completed_sequences=completed_sequences,
-        visualize=config.data_process.visualize
-    )
-    pipeline.run_pipeline(pipeline=hd_pipeline, data_iterator=avfl_dataloader(avfl), n_processes=config.data_process.n_processes)
+    for split_name in conventions.SPLIT_NAMES:
+        logger.info(f'Processing split: {split_name}')
+        ds_path = os.path.join(datasets_path, split_name)
+        output_path = os.path.join(outputs_path, split_name)
+
+        avfl = ArgoverseForecastingLoader(ds_path)
+
+        Path(output_path).mkdir(parents=True, exist_ok=True)
+        completed_sequences = set(os.listdir(output_path))
+
+        hd_pipeline = ArgoverseHDPipeline(
+            output_path=output_path,
+            config=config,
+            argoverse_map=avm,
+            completed_sequences=completed_sequences,
+            visualize=config.data_process.visualize
+        )
+        pipeline.run_pipeline(pipeline=hd_pipeline, data_iterator=avfl_dataloader(avfl), n_processes=config.data_process.n_processes)
 
 
 if __name__ == '__main__':

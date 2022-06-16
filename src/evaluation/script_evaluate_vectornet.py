@@ -6,6 +6,7 @@ from utils import steps
 from evaluation import eval
 from datasets.vectornet_dataset import VectorNetScenarioDataset
 from architectures.factory import model_factory
+import conventions
 
 
 def run():
@@ -16,15 +17,21 @@ def run():
 
     model = model_factory(config.model.name, params=params)
     model.load_state(os.path.join(steps.SOURCE_PATH, config.evaluation.model_path))
-    dataset = VectorNetScenarioDataset(os.path.join(steps.SOURCE_PATH, config.evaluation.input_path), device='cuda')
-    eval.evaluate(
-        model=model,
-        dataset=dataset,
-        output_path=os.path.join(steps.SOURCE_PATH, config.evaluation.output_path),
-        device='cuda',
-        visualize=config.evaluation.visualize,
-        scale=25.0
-    )
+
+    datasets_path = os.path.join(steps.SOURCE_PATH, config.evaluation.input_path)
+    outputs_path = os.path.join(steps.SOURCE_PATH, config.evaluation.output_path)
+    for split_name in conventions.SPLIT_NAMES:
+        ds_path = os.path.join(datasets_path, split_name)
+
+        dataset = VectorNetScenarioDataset(ds_path, device='cuda')
+        eval.evaluate(
+            model=model,
+            dataset=dataset,
+            output_path=os.path.join(outputs_path, split_name),
+            device='cuda',
+            visualize=config.evaluation.visualize,
+            scale=config.graph.data_process.normalization_parameter
+        )
 
 
 if __name__ == '__main__':
