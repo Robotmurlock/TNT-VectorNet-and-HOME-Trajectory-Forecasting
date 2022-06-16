@@ -3,11 +3,15 @@ from pathlib import Path
 import json
 from typing import Any, Union, Optional
 from tqdm import tqdm
+import logging
 
 import torch
 
 from architectures.base import BaseModel
 from evaluation import metrics
+
+
+logger = logging.getLogger('Evaluation')
 
 
 def evaluate(
@@ -16,7 +20,8 @@ def evaluate(
     output_path: str,
     device: Union[str, torch.device],
     visualize: bool = False,
-    scale: Optional[float] = None
+    scale: Optional[float] = None,
+    title: str = 'unknown'
 ) -> None:
     """
     Evaluates model on Argoverse dataset and outputs all metrics in `output_path` with optional visualizations.
@@ -30,6 +35,7 @@ def evaluate(
         device: Device
         visualize: Optionally visualize scenarios with forecasts
         scale: Scale (optional)
+        title: Evaluation title
     """
     fig = None
     n_scenarios = len(dataset)
@@ -59,7 +65,7 @@ def evaluate(
             agent_min_fde, _ = metrics.minFDE(forecasts_scaled, gt_traj_scaled)
             agent_min_ade = agent_min_ade.detach().item()
             agent_min_fde = agent_min_fde.detach().item()
-            print(f'[{scenario.dirname}]: minADE={agent_min_ade:.2f}, minFDE={agent_min_fde:.2f}')
+            logger.debug(f'[{scenario.dirname}]: minADE={agent_min_ade:.2f}, minFDE={agent_min_fde:.2f}')
 
             # Deducing error class
             scenario_metrics['agent'] = {
@@ -92,5 +98,7 @@ def evaluate(
             'agent-mean-minADE': total_agent_min_ade / n_scenarios,
             'agent-mean-minFDE': total_agent_min_fde / n_scenarios,
         }
+        logger.info(f'Metrics for "{title}"')
+        logger.info(json.dumps(dataset_metrics, indent=4))
         with open(os.path.join(output_path, 'metrics.json'), 'w', encoding='utf-8') as stream:
             json.dump(dataset_metrics, stream, indent=2)
