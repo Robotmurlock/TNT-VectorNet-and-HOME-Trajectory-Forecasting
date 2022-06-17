@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import torch
 
@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 
 
 class VectorNetScenarioDataset(Dataset):
-    def __init__(self, path: str, device: Union[str, torch.device]):
+    def __init__(self, path: str):
         """
         Dataset for loading processed rasterized files
 
@@ -16,7 +16,6 @@ class VectorNetScenarioDataset(Dataset):
             path: Path to dataset location on local file system
         """
         self.scenario_paths = self._load_scenario_paths(path)
-        self._device = device
 
     def _load_scenario_paths(self, path) -> List[str]:
         return [os.path.join(path, filename) for filename in os.listdir(path)]
@@ -27,8 +26,8 @@ class VectorNetScenarioDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         data = self.scenario(index)
         polylines, anchors, ground_truth, gt_traj = \
-            data.inputs.to(self._device), data.target_proposals.to(self._device), \
-            data.target_ground_truth.to(self._device), data.ground_truth_trajectory_difference.to(self._device)
+            data.inputs, data.target_proposals, \
+            data.target_ground_truth, data.ground_truth_trajectory_difference
         return polylines, anchors, ground_truth, gt_traj
 
     def __len__(self) -> int:

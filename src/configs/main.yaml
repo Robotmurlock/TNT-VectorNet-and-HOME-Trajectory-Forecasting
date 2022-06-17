@@ -4,7 +4,7 @@ global_parameters:
   trajectory_history_window_length: 20
   trajectory_future_window_length: 30
 data_process:
-  input_path: '../sample1/train/sample1/'
+  input_path: '../sample1/val/sample1/'
   output_path: '../storage/internal/'
   visualize: True
   parameters:

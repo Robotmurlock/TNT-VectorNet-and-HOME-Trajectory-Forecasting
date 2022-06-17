@@ -15,16 +15,19 @@ class DataProcessGraphConfig:
 class GraphTrainConfigParameters:
     epochs: int
     n_targets: int
-    anchor_generator_lr: float
-    anchor_generator_sched_step: int
-    anchor_generator_sched_gamma: float
-    trajectory_forecaster_lr: float
+    tg_lr: float
+    tg_sched_step: int
+    tg_sched_gamma: float
+    tf_lr: float
+    tf_sched_step: int
+    tf_sched_gamma: float
     huber_delta: float
 
 
 @dataclass
 class GraphTrainConfig:
-    input_path: str
+    train_input_path: str
+    val_input_path: str
     output_path: str
     parameters: GraphTrainConfigParameters
     visualize: bool

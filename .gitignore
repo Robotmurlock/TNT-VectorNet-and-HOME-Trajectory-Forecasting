@@ -6,6 +6,9 @@ data
 **/model_storage
 **/storage
 
+# PL
+**/lightning_logs
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
