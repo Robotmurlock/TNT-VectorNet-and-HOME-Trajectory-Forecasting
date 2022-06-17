@@ -2,3 +2,4 @@ from architectures.vectornet.target_generator import TargetGenerator
 from architectures.vectornet.context import VectorNet
 from architectures.vectornet.loss import TargetsLoss, ForecastingLoss
 from architectures.vectornet.trajectory_forecaster import TrajectoryForecaster
+from architectures.vectornet.target_driven_forecaster import TargetDrivenForecaster

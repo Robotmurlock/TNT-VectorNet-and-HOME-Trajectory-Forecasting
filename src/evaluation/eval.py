@@ -4,10 +4,8 @@ import json
 from typing import Any, Union, Optional
 from tqdm import tqdm
 import logging
-
 import torch
 
-from architectures.base import BaseModel
 from evaluation import metrics
 
 
@@ -15,7 +13,7 @@ logger = logging.getLogger('Evaluation')
 
 
 def evaluate(
-    model: BaseModel,
+    model: torch.nn.Module,
     dataset: Any,
     output_path: str,
     device: Union[str, torch.device],
@@ -54,8 +52,9 @@ def evaluate(
                 scenario.inputs.to(device).unsqueeze(0), scenario.target_proposals.to(device).unsqueeze(0), \
                 scenario.target_ground_truth.to(device), scenario.ground_truth_trajectory_difference.to(device)
 
-            forecasts, _, targets, anchors = model(polylines, anchors)
-            forecasts, targets, anchors = forecasts[0], targets[0], anchors[0]
+            outputs = model(polylines, anchors)
+            forecasts, targets, anchors = outputs['forecasts'][0], outputs['targets'][0], outputs['anchors'][0]
+            forecasts = forecasts.cumsum(axis=1)  # transform differences to trajectory
             gt_traj = gt_traj.cumsum(axis=0)  # transform differences to trajectory
             forecasts_scaled = forecasts * scale
             gt_traj_scaled = gt_traj * scale

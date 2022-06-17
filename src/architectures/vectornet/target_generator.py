@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
-from typing import Tuple, Union
+from typing import Tuple
 
 from architectures.vectornet.context import VectorNet
 
 
 class TargetGenerator(nn.Module):
-    def __init__(self, cluster_size: int, polyline_features: int, device: Union[str, torch.device]):
+    def __init__(self, cluster_size: int, polyline_features: int):
         """
         Generates multiple targets from given anchor points sampled from centerlines
 
@@ -14,7 +14,7 @@ class TargetGenerator(nn.Module):
             polyline_features: Number of features per polyline point
         """
         super(TargetGenerator, self).__init__()
-        self._vectornet = VectorNet(cluster_size, polyline_features, device=device)
+        self._vectornet = VectorNet(cluster_size, polyline_features)
 
         # back
         self._linear1 = nn.Linear(128, 256)
@@ -49,7 +49,7 @@ class TargetGenerator(nn.Module):
 
 
 def main():
-    tg = TargetGenerator(cluster_size=20, polyline_features=14, device='cpu')
+    tg = TargetGenerator(cluster_size=20, polyline_features=14)
     polylines = torch.randn(4, 200, 20, 14)
     anchors = torch.randn(4, 75, 2)
 

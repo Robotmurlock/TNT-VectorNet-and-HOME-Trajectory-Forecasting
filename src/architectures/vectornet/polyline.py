@@ -1,16 +1,15 @@
 import torch.nn as nn
 import torch
-from typing import Union
 
 from architectures.components.graphs import GCN
 
 
 class PGN(nn.Module):
-    def __init__(self, cluster_size: int, in_features: int, n_layers: int, device: Union[str, torch.device]):
+    def __init__(self, cluster_size: int, in_features: int, n_layers: int):
         super(PGN, self).__init__()
         self._in_features = in_features
         self._out_features_list = [self._in_features * (2 ** i) for i in range(n_layers)]
-        self._layers = nn.ModuleList([PolylineLayer(cluster_size, n, device) for n in self._out_features_list])
+        self._layers = nn.ModuleList([PolylineLayer(cluster_size, n) for n in self._out_features_list])
 
         # post
         self._post_linear = nn.Linear(2*self._out_features_list[-1], 2*self._out_features_list[-1])
@@ -29,14 +28,15 @@ class PGN(nn.Module):
 
 
 class PolylineLayer(nn.Module):
-    def __init__(self, cluster_size: int, in_features: int, device: Union[str, torch.device]):
+    def __init__(self, cluster_size: int, in_features: int):
         super(PolylineLayer, self).__init__()
         self._feature_encoding = nn.Linear(in_features, in_features)
         self._layernorm = nn.LayerNorm([in_features])
         self._gcn = GCN(in_features=in_features, hidden_features=in_features)
 
-        self._adj = torch.tensor([[(1 if i == j or i == j+1 else 0) for i in range(cluster_size)] for j in range(cluster_size)],
-                                 dtype=torch.float32).to(device)
+        self._adj = nn.Parameter(torch.tensor(
+            [[(1 if i == j or i == j+1 else 0) for i in range(cluster_size)] for j in range(cluster_size)], dtype=torch.float32),
+            requires_grad=False)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         x = self._feature_encoding(inputs)
@@ -46,8 +46,8 @@ class PolylineLayer(nn.Module):
 
 
 def test():
-    pgn = PGN(20, 9, 2, 'cpu')
-    inputs = torch.randn(200, 20, 9)
+    pgn = PGN(20, 9, 2).to('cuda')
+    inputs = torch.randn(200, 20, 9).to('cuda')
     print(pgn(inputs).shape)
 
 
