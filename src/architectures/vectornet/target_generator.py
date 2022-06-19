@@ -18,14 +18,18 @@ class TargetGenerator(nn.Module):
 
         # back
         self._linear1 = nn.Linear(128, 256)
+        self._linear1_ln = nn.LayerNorm(256)
         self._linear2 = nn.Linear(258, 64)
+        self._linear2_ln = nn.LayerNorm(64)
 
         # corrections
         self._l_corrections1 = nn.Linear(64, 128)
+        self._l_corrections1_ln = nn.LayerNorm(128)
         self._l_corrections2 = nn.Linear(128, 2)
 
         # confidences
         self._l_confidence1 = nn.Linear(64, 128)
+        self._l_confidence1_ln = nn.LayerNorm(128)
         self._l_confidence2 = nn.Linear(128, 1)
 
         self._relu = nn.ReLU()
@@ -35,15 +39,15 @@ class TargetGenerator(nn.Module):
 
         # extract features using vectornet
         features = self._vectornet(inputs)
-        features = self._relu(self._linear1(features))
+        features = self._relu(self._linear1_ln(self._linear1(features)))
 
         # merge anchor points with features
         expanded_features = features.unsqueeze(1).repeat(1, n_anchors, 1)
-        target_features = self._relu(self._linear2(torch.concat([expanded_features, anchors], dim=-1)))
+        target_features = self._relu(self._linear2_ln(self._linear2(torch.concat([expanded_features, anchors], dim=-1))))
 
         # Generate corrections and confidences
-        offsets = self._l_corrections2(self._relu(self._l_corrections1(target_features)))
-        confidences = self._l_confidence2(self._relu(self._l_confidence1(target_features))).squeeze(-1)
+        offsets = self._l_corrections2(self._relu(self._l_corrections1_ln(self._l_corrections1(target_features))))
+        confidences = self._l_confidence2(self._relu(self._l_confidence1_ln(self._l_confidence1(target_features)))).squeeze(-1)
 
         return features, offsets, confidences
 

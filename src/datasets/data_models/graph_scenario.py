@@ -94,6 +94,8 @@ class GraphScenarioData:
     def visualize(
         self,
         fig: Optional[plt.Figure] = None,
+        visualize_anchors: bool = False,
+        visualize_candidate_centerlines: bool = False,
         chosen_anchors: Optional[np.ndarray] = None,
         targets_prediction: Optional[np.ndarray] = None,
         agent_traj_forecast: Optional[np.ndarray] = None,
@@ -110,6 +112,8 @@ class GraphScenarioData:
         Args:
             fig: Figure (if None then new one is created otherwise old one is cleared)
                 Make sure to always use same figure instead of creating multiple ones
+            visualize_anchors: Visualize anchors
+            visualize_candidate_centerlines: Visualize candidate centerlines
             chosen_anchors: Chosen target anchors
             targets_prediction: Targets prediction
             agent_traj_forecast: Forecast trajectories
@@ -128,7 +132,9 @@ class GraphScenarioData:
         for polyline in sorted_polylines:
             for point in polyline:
                 object_type = ObjectType.from_one_hot(point[4:])
-                plt.arrow(x=point[0], y=point[1], dx=point[2]-point[0], dy=point[3]-point[1],
+                if object_type == ObjectType.CANDIDATE_CENTERLINE and not visualize_candidate_centerlines:
+                    continue
+                plt.arrow(x=point[0], y=point[1], dx=point[2], dy=point[3],
                           color=object_type.color, label=object_type.label, length_includes_head=True,
                           head_width=0.02, head_length=0.02, zorder=5)
 
@@ -144,8 +150,14 @@ class GraphScenarioData:
                 plt.plot(agent_traj_forecast[f_index, :, 0], agent_traj_forecast[f_index, :, 1],
                          color='lime', linewidth=5, label='forecast', zorder=10)
 
+        # Plot ground truth trajectory
         agent_traj_gt = self.agent_traj_gt * scale if scale is not None else self.agent_traj_gt
-        plt.plot(agent_traj_gt[:, 0], agent_traj_gt[:, 1], color='darkgreen', linewidth=5, label='ground truth', zorder=10)
+        for point_index in range(agent_traj_gt.shape[0]-1):
+            plt.arrow(x=agent_traj_gt[point_index, 0], y=agent_traj_gt[point_index, 1],
+                      dx=agent_traj_gt[point_index+1, 0]-agent_traj_gt[point_index, 0],
+                      dy=agent_traj_gt[point_index+1, 1]-agent_traj_gt[point_index, 1],
+                      color='darkgreen', label='ground truth', length_includes_head=True,
+                      head_width=0.02, head_length=0.02, zorder=40, linewidth=3)
 
         if targets_prediction is not None:
             # Plot prediction target points
@@ -163,9 +175,10 @@ class GraphScenarioData:
         anchors = self.anchors * scale if scale is not None else self.anchors
         ground_truth_point = self.ground_truth_point * scale if scale is not None else self.ground_truth_point
 
-        plt.scatter(anchors[:, 0], anchors[:, 1], color='purple', label='anchors', zorder=20)
-        plt.scatter([ground_truth_point[0]], [ground_truth_point[1]],
-                    color='pink', label='ground truth target', s=200, zorder=20)
+        if visualize_anchors:
+            plt.scatter(anchors[:, 0], anchors[:, 1], color='purple', label='anchors', zorder=20)
+            plt.scatter([ground_truth_point[0]], [ground_truth_point[1]],
+                        color='pink', label='ground truth target', s=200, zorder=20)
 
         # set title and axis info
         plt.title(f'Graph Scenario {self.id}')

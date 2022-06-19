@@ -4,7 +4,7 @@ import configparser
 from utils import steps
 from evaluation import eval
 from datasets.vectornet_dataset import VectorNetScenarioDataset
-from architectures.vectornet import TargetDrivenForecaster
+from architectures.vectornet import TargetDrivenForecaster, LiteTNTLoss
 import conventions
 
 
@@ -18,6 +18,7 @@ def run():
         polyline_features=14,
         n_targets=6
     )
+    loss = LiteTNTLoss()
 
     datasets_path = os.path.join(steps.SOURCE_PATH, config.evaluation.input_path)
     outputs_path = os.path.join(steps.SOURCE_PATH, config.evaluation.output_path)
@@ -27,6 +28,7 @@ def run():
         dataset = VectorNetScenarioDataset(ds_path)
         eval.evaluate(
             model=model,
+            loss=loss,
             dataset=dataset,
             output_path=os.path.join(outputs_path, split_name),
             device='cuda',

@@ -5,13 +5,13 @@ from typing import Tuple
 
 
 class TargetsLoss(nn.Module):
-    def __init__(self, delta: float = 0.16):
+    def __init__(self, delta: float = 0.04):
         super(TargetsLoss, self).__init__()
-        self._bce = nn.BCEWithLogitsLoss()
-        self._huber = nn.HuberLoss(delta=delta, reduction='mean')
+        self._bce = nn.BCELoss(reduction='none')
+        self._huber = nn.HuberLoss(delta=delta, reduction='sum')
 
-
-    def forward(self, anchors: torch.Tensor, offsets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+    def forward(self, anchors: torch.Tensor, offsets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) \
+            -> Tuple[torch.Tensor, ...]:
         """
         Loss1 := CrossEntropyLoss(confidences, closest_target_index)
             Predicted target (anchor + offsets) that is the closest to ground truth point is correct class label
@@ -34,7 +34,9 @@ class TargetsLoss(nn.Module):
         closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
 
         # confidence loss
-        ce_loss = self._bce(confidences, closest_target_index_onehot)  # closest target should have confidence 1 and all others should have 0
+        # ideally the closest target should have confidence 1 and all others should have 0
+        ce_loss = self._bce(F.softmax(confidences, dim=-1), closest_target_index_onehot)
+        ce_loss = ce_loss.sum()
 
         # offsets loss
         closest_anchors = torch.stack([anchors[index, closest_target_index[index], :] for index in range(anchors.shape[0])])
@@ -50,9 +52,9 @@ class TargetsLoss(nn.Module):
 
 
 class ForecastingLoss(nn.Module):
-    def __init__(self, delta: float = 0.16):
+    def __init__(self, delta: float = 0.04):
         super(ForecastingLoss, self).__init__()
-        self._huber = nn.HuberLoss(delta=delta)
+        self._huber = nn.HuberLoss(delta=delta, reduction='sum')
 
     def forward(self, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
@@ -60,7 +62,7 @@ class ForecastingLoss(nn.Module):
 
 
 class LiteTNTLoss(nn.Module):
-    def __init__(self, targets_delta: float = 0.16, forecasting_delta: float = 0.16):
+    def __init__(self, targets_delta: float = 0.04, forecasting_delta: float = 0.04):
         super(LiteTNTLoss, self).__init__()
         self._tg_loss = TargetsLoss(delta=targets_delta)
         self._tf_loss = ForecastingLoss(delta=forecasting_delta)
@@ -77,8 +79,8 @@ class LiteTNTLoss(nn.Module):
         _, tg_ce_loss, tg_huber_loss = self._tg_loss(anchors, offsets, confidences, ground_truth)
         tf_huber_loss = self._tf_loss(forecasts, gt_traj)
 
-        total_loss = 0.1*tg_ce_loss + 0.1*tg_huber_loss + 1.0*tf_huber_loss
-        return total_loss, tg_ce_loss, tg_huber_loss, tg_huber_loss
+        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss
+        return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss
 
 
 def main():

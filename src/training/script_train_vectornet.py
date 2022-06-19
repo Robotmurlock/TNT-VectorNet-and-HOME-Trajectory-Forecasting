@@ -41,11 +41,6 @@ def run(config: configparser.GlobalConfig):
                 monitor='val_loss',
                 save_last=True,
                 save_top_k=1
-            ),
-            EarlyStopping(
-                min_delta=1e-6,
-                patience=20,
-                monitor='val_loss'
             )
         ]
     )

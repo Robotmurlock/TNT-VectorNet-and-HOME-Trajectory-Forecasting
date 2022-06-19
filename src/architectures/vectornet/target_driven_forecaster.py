@@ -146,7 +146,7 @@ class TargetDrivenForecaster(LightningModule):
             'frequency': 1
         }
 
-        return [tg_opt, tf_opt], [tg_sched, tf_sched]
+        return [tg_opt, tf_opt], [tg_sched]
 
 
 def test():

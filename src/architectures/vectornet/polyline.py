@@ -35,7 +35,7 @@ class PolylineLayer(nn.Module):
         self._gcn = GCN(in_features=in_features, hidden_features=in_features)
 
         self._adj = nn.Parameter(torch.tensor(
-            [[(1 if i == j or i == j+1 else 0) for i in range(cluster_size)] for j in range(cluster_size)], dtype=torch.float32),
+            [[1 / cluster_size for i in range(cluster_size)] for j in range(cluster_size)], dtype=torch.float32),
             requires_grad=False)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
@@ -47,7 +47,7 @@ class PolylineLayer(nn.Module):
 
 def test():
     pgn = PGN(20, 9, 2).to('cuda')
-    inputs = torch.randn(200, 20, 9).to('cuda')
+    inputs = torch.randn(10, 200, 20, 9).to('cuda')
     print(pgn(inputs).shape)
 
 
