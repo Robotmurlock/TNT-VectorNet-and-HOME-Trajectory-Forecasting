@@ -41,7 +41,9 @@ def create_polyline(polyline_data: np.ndarray, object_type: ObjectType, max_segm
         point = point[:2]
 
         if last_point is not None:
-            edge = np.hstack([last_point, point, object_type.one_hot, empty_metadata])
+            direction = point - last_point
+            center_point = (point + last_point) / 2
+            edge = np.hstack([center_point, direction, object_type.one_hot, empty_metadata])
             polyline_edges_list.append(edge)
         last_point = point
 
@@ -80,7 +82,9 @@ def create_lane_polyline(lane_feature: np.ndarray, max_segments: int) -> np.ndar
         point = lane_feature[point_index][:2]
         metadata = lane_feature[point_index][2:]
         if last_point is not None:
-            edge = np.hstack([last_point, point, ObjectType.CENTERLINE.one_hot, metadata])
+            direction = point - last_point
+            center_point = (point + last_point) / 2
+            edge = np.hstack([center_point, direction, ObjectType.CENTERLINE.one_hot, metadata])
             polyline_edges_list.append(edge)
         last_point = point
 

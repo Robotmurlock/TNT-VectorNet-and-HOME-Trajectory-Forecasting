@@ -9,6 +9,7 @@ class DataProcessGraphConfig:
     max_polylines: int
     normalization_parameter: float
     visualize: bool
+    visualize_anchors: bool
 
 
 @dataclass

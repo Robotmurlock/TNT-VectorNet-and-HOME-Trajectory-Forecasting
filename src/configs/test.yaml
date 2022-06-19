@@ -7,7 +7,7 @@ data_process:
   input_path: 'test_data/sample2'
   output_path: 'test_data/internal'
   n_processes: 8
-  visualize: False
+  visualize: True
   parameters:
     trajectory_min_history_window_length: 5
     object_trajectory_min_history_window_length: 5
@@ -40,6 +40,7 @@ graph:
     max_polylines: 300
     normalization_parameter: 25.0
     visualize: False
+    visualize_anchors: False
   train:
     train_input_path: 'test_data/internal_graph/train'
     val_input_path: 'test_data/internal_graph/val'
@@ -62,4 +63,4 @@ evaluation:
   input_path: 'test_data/internal_graph'
   output_path: 'test_data/result'
   model_path: 'model_storage/vectornet'
-  visualize: False
+  visualize: True
