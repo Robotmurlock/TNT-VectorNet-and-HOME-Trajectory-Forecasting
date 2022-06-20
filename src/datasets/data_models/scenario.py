@@ -127,7 +127,7 @@ class ScenarioData:
         # plot candidate centerlines
         for c_index in range(self.centerline_candidate_features.shape[0]):
             plt.plot(self.centerline_candidate_features[c_index, :, 0], self.centerline_candidate_features[c_index, :, 1],
-                     color='k', linestyle='dashed', label='candidate centerline')
+                     color='k', linewidth=5, linestyle='dashed', label='candidate centerline')
 
         # plot agent
         plt.plot(self.agent_traj_hist[:, 0], self.agent_traj_hist[:, 1], color='green', linewidth=7, label='Agent history')

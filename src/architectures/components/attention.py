@@ -71,7 +71,7 @@ class MultiHeadAttention(nn.Module):
 
 
 def test():
-    inputs = torch.randn(1, 5, 12)
+    inputs = torch.randn(4, 5, 12)
     att = MultiHeadAttention(12, 4, activation=nn.ReLU())
 
     print(att(inputs).shape)

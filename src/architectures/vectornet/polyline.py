@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import numpy as np
 
 from architectures.components.graphs import GCN
 
@@ -34,9 +35,9 @@ class PolylineLayer(nn.Module):
         self._layernorm = nn.LayerNorm([in_features])
         self._gcn = GCN(in_features=in_features, hidden_features=in_features)
 
-        self._adj = nn.Parameter(torch.tensor(
-            [[1 / cluster_size for i in range(cluster_size)] for j in range(cluster_size)], dtype=torch.float32),
-            requires_grad=False)
+        raw_adj = np.array([[(1 if i >= j else 0) for i in range(cluster_size)] for j in range(cluster_size)])
+        self._adj = nn.Parameter(torch.tensor(np.linalg.inv(np.diag(raw_adj.sum(axis=1))) @ raw_adj, dtype=torch.float32),
+                                 requires_grad=False)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         x = self._feature_encoding(inputs)
