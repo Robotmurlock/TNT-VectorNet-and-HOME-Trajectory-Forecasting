@@ -16,8 +16,7 @@ class GCN(nn.Module):
             .expand(enc_flatten.shape[0], *adj.shape)
         message_flatten = torch.bmm(expanded_laplacian, enc_flatten)
         message = message_flatten.view(enc.shape)
-        aggregated_message = torch.max(message, dim=-2)[0].unsqueeze(-2).expand(*message.shape)
-        return torch.concat([aggregated_message, enc], dim=-1)
+        return torch.concat([message, enc], dim=-1)
 
 
 def test():

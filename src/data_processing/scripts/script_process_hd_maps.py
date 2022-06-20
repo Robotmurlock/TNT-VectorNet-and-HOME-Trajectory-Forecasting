@@ -382,45 +382,10 @@ def find_and_process_centerline_features(
         - Centerlines with normalized x and y coordinates
     """
     agent_velocity = base_agent_traj_hist[-1, :2] - base_agent_traj_hist[-2, :2]  # velocity is here approximated using distance in last step
-    sampled_velocities = trajectories.sample_velocities(
-        raw_velocity=agent_velocity,
-        intensity_mult=[0.5, 1.0, 2.0],
-        rotations=[-np.pi / 2, -np.pi / 4, 0, np.pi / 4, np.pi / 2],
-        intensity_add=[0.0, 0.05, 0.1]
-    )
     radius = max(min_lane_radius, np.sqrt(agent_velocity[0] ** 2 + agent_velocity[1] ** 2) * centerline_radius_scale)
 
-    # Sample centerlines using naive future traj approximation (oversampled)
-    sampled_centerlines = []
-    for sv in sampled_velocities:
-        naive_future_traj = center_point + sv.reshape(1, 2).repeat(20, axis=0).cumsum(axis=0)
-        try:
-            cs = avm.get_candidate_centerlines_for_traj(naive_future_traj, city, max_search_radius=radius)
-            sampled_centerlines.append(cs)
-        except AssertionError:
-            pass  # No centerlines were found
-
-    # Also sample centerlines using history traj
-    cs = avm.get_candidate_centerlines_for_traj(base_agent_traj_hist, city, max_search_radius=radius)
-    sampled_centerlines.append(cs)
-
-    # Merge all centerlines
-    centerlines_with_duplicates = lists.flatten(sampled_centerlines)
-    n_centerlines_with_duplicates = len(centerlines_with_duplicates)
-
     # Filter duplicates
-    centerlines = []
-    for cs_i in range(n_centerlines_with_duplicates):
-        keep = True
-        for cs_j in range(cs_i+1, n_centerlines_with_duplicates):
-            if centerlines_with_duplicates[cs_i].shape != centerlines_with_duplicates[cs_j].shape:
-                continue  # Different shape -> not duplicate
-            if np.sum(np.abs((centerlines_with_duplicates[cs_i] - centerlines_with_duplicates[cs_j]))) < 1e-3:
-                keep = False  # Same trajectory -> duplicate
-                break
-
-        if keep:
-            centerlines.append(centerlines_with_duplicates[cs_i])
+    centerlines = avm.get_candidate_centerlines_for_traj(base_agent_traj_hist, city, max_search_radius=radius)
     n_centerlines = len(centerlines)
 
     if n_centerlines == 0:

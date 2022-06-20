@@ -6,14 +6,17 @@ global_parameters:
 data_process:
   input_path: '../sample1/val/sample1/'
   output_path: '../storage/internal/'
+  n_processes: 1
   visualize: True
   parameters:
     trajectory_min_history_window_length: 5
-    object_trajectory_min_history_window_length: 5
-    object_trajectory_min_future_window_length: 3
-    object_distance_threshold: 100
-    max_centerline_distance: 5
-    add_neighboring_lanes: True
+      object_trajectory_min_history_window_length: 5
+      object_trajectory_min_future_window_length: 3
+      object_distance_threshold: 100
+      centerline_radius_scale: 3.0
+      add_neighboring_lanes: True
+      lane_radius_scale: 5.0
+      min_lane_radius: 50.0
 raster:
   data_process:
     input_path: '../storage/internal'
@@ -36,19 +39,23 @@ graph:
     max_polyline_segments: 20
     max_polylines: 200
     normalization_parameter: 25.0
-    visualize: True
-  train:
-    input_path: '../storage/internal_graph'
-    output_path: '../storage/model_storage/vectornet'
     visualize: False
+    visualize_anchors: True
+  train:
+    train_input_path: 'test_data/internal_graph/train'
+    val_input_path: 'test_data/internal_graph/val'
+    output_path: 'model_storage/vectornet'
+    visualize: True
     parameters:
       epochs: 10
       n_targets: 6
-      anchor_generator_lr: 0.0001
-      anchor_generator_sched_step: 5
-      anchor_generator_sched_gamma: 0.1
-      trajectory_forecaster_lr: 0.001
-      huber_delta: 0.16
+      tg_lr: 0.001
+      tg_sched_step: 5
+      tg_sched_gamma: 0.1
+      tf_lr: 0.001
+      tf_sched_step: 5
+      tf_sched_gamma: 0.1
+      huber_delta: 0.20
 model:
   name: 'constant_velocity'
   config_path: 'configs/model_config.yaml'
@@ -56,4 +63,4 @@ evaluation:
   input_path: '../storage/internal'
   output_path: '../storage/result'
   model_path: '../storage/model_storage/vectornet/model'
-  visualize: True
+  visualize: False

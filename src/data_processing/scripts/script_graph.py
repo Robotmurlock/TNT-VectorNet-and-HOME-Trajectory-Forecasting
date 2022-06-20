@@ -3,6 +3,7 @@ import logging
 import numpy as np
 from typing import List
 import random
+import math
 
 from utils import steps, trajectories, time
 import configparser
@@ -106,43 +107,41 @@ def create_lane_polylines(lane_features: np.ndarray, max_segments: int) -> List[
             for object_index in range(lane_features.shape[0])]
 
 
-def sample_anchor_points(lane_points: np.ndarray, sample_size: int, threshold: float) -> np.ndarray:
+def sample_anchor_points(candidate_polylines: np.ndarray, sample_size: int) -> np.ndarray:
     """
     Sample anchor points from lane points values and agent points values (positions)
 
     Args:
-        lane_points: All lane points
+        candidate_polylines: Candidate Polylines
         sample_size: Number of points to be sampled
-        threshold: Minimum distance between two points
 
     Returns: Anchors (targets)
     """
-    n_points = lane_points.shape[0]
-    np.random.shuffle(lane_points)
-    assert n_points >= sample_size, 'Not enough points!'
-    sampled_point_indices = []
+    anchors_samples = []
+    candidate_polylines = np.unique(candidate_polylines, axis=0)
 
-    next_point_index = 0
-    while len(sampled_point_indices) < sample_size and next_point_index < n_points:
-        point = lane_points[next_point_index, :]
-        skip = False
-        for sp_index in sampled_point_indices:
-            if np.sqrt((point[0] - lane_points[sp_index, 0]) ** 2 + (point[1] - lane_points[sp_index, 1]) ** 2) <= threshold:
-                skip = True
-                break
+    n_candidate_polylines = candidate_polylines.shape[0]
+    points_per_candidate = [sample_size // n_candidate_polylines for _ in range(n_candidate_polylines-1)]
+    points_per_candidate.append(sample_size - sum(points_per_candidate))
 
-        if not skip:
-            sampled_point_indices.append(next_point_index)
-        next_point_index += 1
+    for cp_index, points_to_sample in enumerate(points_per_candidate):
+        polyline_length = candidate_polylines.shape[1]
+        ts = np.linspace(0, polyline_length-1, points_to_sample)
+        for t in ts:
+            start_point_index, end_point_index = int(math.floor(t)), int(math.ceil(t))
+            direction = candidate_polylines[cp_index, end_point_index, :] - candidate_polylines[cp_index, start_point_index, :]
+            t_point = candidate_polylines[cp_index, start_point_index, :] + (t - start_point_index) * direction
+            anchors_samples.append(t_point)
 
-    if len(sampled_point_indices) < sample_size:
-        missing_indices = sample_size - len(sampled_point_indices)
-        all_indices = list(range(n_points))
-        unused_indices = list(set(all_indices) - set(sampled_point_indices))
-        chosen_unused_indices = random.choices(unused_indices, k=missing_indices)
-        sampled_point_indices.extend(chosen_unused_indices)
+    anchors = np.vstack(anchors_samples)
+    while anchors.shape != np.unique(anchors, axis=0).shape:
+        anchors = np.unique(anchors, axis=0)
+        n_missing = sample_size - anchors.shape[0]
+        anchors = np.vstack([anchors, 10 * np.random.randn(n_missing, 2)])
 
-    return np.stack(lane_points[sampled_point_indices])
+    assert (sample_size, 2) == anchors.shape, f'Expected shape {(sample_size, 2)} but found {anchors.shape}'
+    assert anchors.shape == np.unique(anchors, axis=0).shape, 'Found duplicates! '
+    return anchors
 
 
 def anchor_min_error(anchors: np.ndarray, ground_truth: np.ndarray) -> np.ndarray:
@@ -212,7 +211,10 @@ class GraphPipeline(pipeline.Pipeline):
                      for p in polylines]
 
         # create anchors
-        anchors = sample_anchor_points(np.vstack(candidate_polylines)[:, :2].copy(), sample_size=120, threshold=0.2)
+        candidate_polylines = [trajectories.pad_trajectory(cp, length=20, pad_type=trajectories.PadType.PAST)[0]
+                               for cp in candidate_polylines]
+        candidate_polylines_points = np.stack(candidate_polylines)[:, :, :2].copy()
+        anchors = sample_anchor_points(candidate_polylines_points, sample_size=50)
 
         # filter polylines
         polylines = polylines[:self._dpg_config.max_polylines]
@@ -237,6 +239,8 @@ class GraphPipeline(pipeline.Pipeline):
         anchor_error = anchor_min_error(anchors, agent_traj_gt_normalized[-1, :])
         logger.debug(f'[{scenario.dirname}]: Closest anchor distance is: {anchor_error:.2f}')
 
+        anchors = np.vstack([anchors, agent_traj_gt_normalized[-1:, :]])
+
         graph_scenario = GraphScenarioData(
             id=scenario.id,
             city=scenario.city,
@@ -254,7 +258,7 @@ class GraphPipeline(pipeline.Pipeline):
         data.save(self._output_path)
 
     def visualize(self, data: GraphScenarioData) -> None:
-        self._fig = data.visualize(self._fig)
+        self._fig = data.visualize(self._fig, visualize_anchors=self._config.graph.data_process.visualize_anchors)
         figpath = os.path.join(self._output_path, data.dirname, 'polylines.png')
         self._fig.savefig(figpath)
 
