@@ -239,8 +239,6 @@ class GraphPipeline(pipeline.Pipeline):
         anchor_error = anchor_min_error(anchors, agent_traj_gt_normalized[-1, :])
         logger.debug(f'[{scenario.dirname}]: Closest anchor distance is: {anchor_error:.2f}')
 
-        anchors = np.vstack([anchors, agent_traj_gt_normalized[-1:, :]])
-
         graph_scenario = GraphScenarioData(
             id=scenario.id,
             city=scenario.city,
