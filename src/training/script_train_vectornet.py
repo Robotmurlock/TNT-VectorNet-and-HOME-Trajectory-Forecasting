@@ -16,8 +16,8 @@ def run(config: configparser.GlobalConfig):
     val_input_path = os.path.join(steps.SOURCE_PATH, config.graph.train.val_input_path)
     model_storage_path = os.path.join(steps.SOURCE_PATH, config.graph.train.output_path)
 
-    train_loader = DataLoader(VectorNetScenarioDataset(train_input_path), batch_size=8, num_workers=8)
-    val_loader = DataLoader(VectorNetScenarioDataset(val_input_path), batch_size=8, num_workers=8)
+    train_loader = DataLoader(VectorNetScenarioDataset(train_input_path), batch_size=64, num_workers=8)
+    val_loader = DataLoader(VectorNetScenarioDataset(val_input_path), batch_size=64, num_workers=8)
 
     train_parameters = config.graph.train.parameters
     tnt = TargetDrivenForecaster(
