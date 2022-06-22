@@ -15,7 +15,7 @@ def run(config: configparser.GlobalConfig):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # TODO: Move to config
     logging.info(f'Training on `{device}` device')
 
-    input_path = os.path.join(steps.SOURCE_PATH, config.raster.train.input_path)
+    input_path = os.path.join(config.global_path, config.raster.train.input_path)
 
     dataset = HeatmapOutputRasterScenarioDatasetTorchWrapper(input_path)
     data_loader = DataLoader(dataset, batch_size=16, num_workers=4)
@@ -60,7 +60,7 @@ def run(config: configparser.GlobalConfig):
             ax.imshow(true_heatmap[index][0], cmap='YlOrBr', origin='lower')
             ax.set_title('true')
             plt.tight_layout()
-            fig.savefig(os.path.join(steps.SOURCE_PATH, 'test_data', 'result', f'heatmap_{index}.png'))
+            fig.savefig(os.path.join(config.global_path, 'test_data', 'result', f'heatmap_{index}.png'))
 
 
 if __name__ == '__main__':
