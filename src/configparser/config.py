@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 import yaml
 import dacite
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 import logging
 
+import utils.steps
 from configparser.raster import RasterConfig
 from configparser.graph import GraphConfig
 
@@ -39,6 +40,7 @@ class DataProcessConfig:
     n_processes: int
     visualize: bool
     parameters: DataProcessParametersConfig
+    skip: Optional[List[str]]
 
 
 @dataclass
@@ -59,6 +61,7 @@ class EvaluationConfig:
 class GlobalConfig:
     log: LoggerConfig
     global_parameters: GlobalParametersConfig
+    global_path: Optional[str]
     data_process: DataProcessConfig
     model: ModelConfig
     evaluation: EvaluationConfig
@@ -68,6 +71,9 @@ class GlobalConfig:
 
     def __post_init__(self):
         self.configure_logging()
+
+        if self.global_path is None:
+            self.global_path = utils.steps.SOURCE_PATH
 
     def configure_logging(self) -> None:
         """

@@ -59,7 +59,7 @@ def create_polylines(polylines_data: np.ndarray, object_type: ObjectType, max_se
     Args:
         polylines_data: Stacked trajectories
         object_type: Trajectories object type
-        max_segments: Max polyline segmets
+        max_segments: Max polyline segments
 
     Returns: List of polylines
     """
@@ -73,7 +73,7 @@ def create_lane_polyline(lane_feature: np.ndarray, max_segments: int) -> np.ndar
 
     Args:
         lane_feature: Lane initial features
-        max_segments: Max polyline segmets
+        max_segments: Max polyline segments
 
     Returns: Lane Polyline
     """
@@ -99,7 +99,7 @@ def create_lane_polylines(lane_features: np.ndarray, max_segments: int) -> List[
 
     Args:
         lane_features: Lane features (lanes with features)
-        max_segments: Max polyline segmets
+        max_segments: Max polyline segments
 
     Returns: List of polylines for each lane segment
     """
@@ -257,8 +257,8 @@ class GraphPipeline(pipeline.Pipeline):
 
     def visualize(self, data: GraphScenarioData) -> None:
         self._fig = data.visualize(self._fig, visualize_anchors=self._config.graph.data_process.visualize_anchors)
-        figpath = os.path.join(self._output_path, data.dirname, 'polylines.png')
-        self._fig.savefig(figpath)
+        fig_path = os.path.join(self._output_path, data.dirname, 'polylines.png')
+        self._fig.savefig(fig_path)
 
 
 @time.timeit
@@ -269,12 +269,16 @@ def run(config: configparser.GlobalConfig):
         config: Config
     """
     dpg_config = config.graph.data_process
-    inputs_path = os.path.join(steps.SOURCE_PATH, dpg_config.input_path)
-    outputs_path = os.path.join(steps.SOURCE_PATH, dpg_config.output_path)
+    inputs_path = os.path.join(config.global_path, dpg_config.input_path)
+    outputs_path = os.path.join(config.global_path, dpg_config.output_path)
 
     assert set(conventions.SPLIT_NAMES).issubset(set(os.listdir(inputs_path))), f'Format is not valid. Required splits: {conventions.SPLIT_NAMES}'
 
     for split_name in conventions.SPLIT_NAMES:
+        if dpg_config.skip is not None and split_name in dpg_config.skip:
+            logger.info(f'Skipping "{split_name}" as defined in config!')
+            continue
+
         ds_path = os.path.join(inputs_path, split_name)
         output_path = os.path.join(outputs_path, split_name)
 

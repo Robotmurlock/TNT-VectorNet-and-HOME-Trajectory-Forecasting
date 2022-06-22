@@ -1,11 +1,12 @@
 log:
   level: 'INFO'
+global_path: '/media/home/data/all'
 global_parameters:
   trajectory_history_window_length: 20
   trajectory_future_window_length: 30
 data_process:
-  input_path: '../../data/dataset'
-  output_path: '../../data/internal'
+  input_path: 'dataset'
+  output_path: 'internal'
   n_processes: 12
   visualize: False
   parameters:
@@ -34,13 +35,16 @@ raster:
     output_path: 'model_storage/heatmap'
 graph:
   data_process:
-    input_path: '../../data/internal'
-    output_path: '../../data/internal_graph'
+    input_path: 'internal'
+    output_path: 'internal_graph'
     max_polyline_segments: 20
     max_polylines: 100
     normalization_parameter: 25.0
     visualize: False
     visualize_anchors: True
+    skip:
+      - 'train'
+      - 'val'
   train:
     train_input_path: '../../data/internal_graph/train'
     val_input_path: '../../data/internal_graph/val'

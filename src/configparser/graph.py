@@ -1,4 +1,8 @@
+"""
+VectorNet config dataclass
+"""
 from dataclasses import dataclass
+from typing import Optional, List
 
 
 @dataclass
@@ -10,6 +14,7 @@ class DataProcessGraphConfig:
     normalization_parameter: float
     visualize: bool
     visualize_anchors: bool
+    skip: Optional[List[str]]
 
 
 @dataclass
