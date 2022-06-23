@@ -1,3 +1,6 @@
+"""
+Heatmap output config
+"""
 from dataclasses import dataclass
 from typing import List
 

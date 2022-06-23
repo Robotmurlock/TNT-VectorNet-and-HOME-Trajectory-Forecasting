@@ -6,3 +6,4 @@ pandas==1.4.2
 PyYAML==6.0
 torch==1.11.0+cu113
 tqdm==4.64.0
+pytorch_lightning

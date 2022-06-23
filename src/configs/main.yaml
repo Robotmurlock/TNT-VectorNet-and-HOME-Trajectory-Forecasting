@@ -1,22 +1,23 @@
 log:
   level: 'INFO'
+global_path: '/media/home/data/all'
 global_parameters:
   trajectory_history_window_length: 20
   trajectory_future_window_length: 30
 data_process:
-  input_path: '../sample1/val/sample1/'
-  output_path: '../storage/internal/'
-  n_processes: 1
-  visualize: True
+  input_path: 'dataset'
+  output_path: 'internal'
+  n_processes: 12
+  visualize: False
   parameters:
     trajectory_min_history_window_length: 5
-      object_trajectory_min_history_window_length: 5
-      object_trajectory_min_future_window_length: 3
-      object_distance_threshold: 100
-      centerline_radius_scale: 3.0
-      add_neighboring_lanes: True
-      lane_radius_scale: 5.0
-      min_lane_radius: 50.0
+    object_trajectory_min_history_window_length: 5
+    object_trajectory_min_future_window_length: 3
+    object_distance_threshold: 100
+    centerline_radius_scale: 3.0
+    add_neighboring_lanes: True
+    lane_radius_scale: 5.0
+    min_lane_radius: 50.0
 raster:
   data_process:
     input_path: '../storage/internal'
@@ -34,33 +35,36 @@ raster:
     output_path: 'model_storage/heatmap'
 graph:
   data_process:
-    input_path: '../storage/internal'
-    output_path: '../storage/internal_graph'
+    input_path: 'internal'
+    output_path: 'internal_graph'
     max_polyline_segments: 20
-    max_polylines: 200
+    max_polylines: 100
     normalization_parameter: 25.0
     visualize: False
     visualize_anchors: True
+    skip:
+      - 'train'
+      - 'val'
   train:
-    train_input_path: 'test_data/internal_graph/train'
-    val_input_path: 'test_data/internal_graph/val'
+    train_input_path: '../../data/internal_graph/train'
+    val_input_path: '../../data/internal_graph/val'
     output_path: 'model_storage/vectornet'
     visualize: True
     parameters:
-      epochs: 10
+      epochs: 20
       n_targets: 6
-      tg_lr: 0.001
-      tg_sched_step: 5
+      tg_lr: 0.0001
+      tg_sched_step: 10
       tg_sched_gamma: 0.1
-      tf_lr: 0.001
-      tf_sched_step: 5
+      tf_lr: 0.0001
+      tf_sched_step: 10
       tf_sched_gamma: 0.1
       huber_delta: 0.20
 model:
   name: 'constant_velocity'
   config_path: 'configs/model_config.yaml'
 evaluation:
-  input_path: '../storage/internal'
-  output_path: '../storage/result'
-  model_path: '../storage/model_storage/vectornet/model'
+  input_path: '../../data/internal_graph'
+  output_path: '../../data/result'
+  model_path: 'model_storage/vectornet'
   visualize: False

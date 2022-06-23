@@ -18,7 +18,7 @@ class MultiHeadAttention(nn.Module):
         """
         super(MultiHeadAttention, self).__init__()
         if in_features % head_num != 0:
-            raise ValueError('`in_features` should be divisable by `head_num`!')
+            raise ValueError('`in_features` should be divisible by `head_num`!')
         self._head_in_features = in_features // head_num
 
         self._d_scale = math.sqrt(self._head_in_features)
@@ -46,6 +46,7 @@ class MultiHeadAttention(nn.Module):
 
         weights = self._softmax(torch.bmm(query, key.transpose(-2, -1)) / self._d_scale)
         features = torch.bmm(weights, value)
+        # noinspection PyTypeChecker
         features = self._reshape_from_batches(features)
 
         features = self._out_linear(features)

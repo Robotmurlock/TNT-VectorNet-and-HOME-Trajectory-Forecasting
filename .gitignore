@@ -1,3 +1,7 @@
+# Custom
+*.txt
+!requirements.txt
+
 # Project
 data
 **/map_files

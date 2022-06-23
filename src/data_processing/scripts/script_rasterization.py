@@ -274,9 +274,9 @@ def plot_all_feature_maps(rasterized_features: np.ndarray, path: str, fig: Optio
 
 def run(config: configparser.GlobalConfig):
     dpr_config = config.raster.data_process
-    scenario_path = os.path.join(steps.SOURCE_PATH, dpr_config.input_path)
+    scenario_path = os.path.join(config.global_path, dpr_config.input_path)
     scenario_paths = [os.path.join(scenario_path, dirname) for dirname in os.listdir(scenario_path)]
-    output_path = os.path.join(steps.SOURCE_PATH, dpr_config.output_path)
+    output_path = os.path.join(config.global_path, dpr_config.output_path)
     completed_scenarios = set(os.listdir(output_path) if os.path.exists(output_path) else [])
 
     scenarios = [ScenarioData.load(path) for path in scenario_paths]

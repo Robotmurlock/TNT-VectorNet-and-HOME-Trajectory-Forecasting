@@ -575,15 +575,19 @@ def run(config: configparser.GlobalConfig):
     Processes rad HD map using ArgoVerse API
 
     Args:
-        config: Congiruation
+        config: Configuration
     """
     avm = ArgoverseMap()
-    datasets_path = os.path.join(steps.SOURCE_PATH, config.data_process.input_path)
-    outputs_path = os.path.join(steps.SOURCE_PATH, config.data_process.output_path)
+    datasets_path = os.path.join(config.global_path, config.data_process.input_path)
+    outputs_path = os.path.join(config.global_path, config.data_process.output_path)
 
     assert set(conventions.SPLIT_NAMES).issubset(set(os.listdir(datasets_path))), f'Format is not valid. Required splits: {conventions.SPLIT_NAMES}'
 
     for split_name in conventions.SPLIT_NAMES:
+        if config.data_process.skip is not None and split_name in config.data_process.skip:
+            logger.info(f'Skipping "{split_name}" as defined in config!')
+            continue
+
         logger.info(f'Processing split: {split_name}')
         ds_path = os.path.join(datasets_path, split_name)
         output_path = os.path.join(outputs_path, split_name)

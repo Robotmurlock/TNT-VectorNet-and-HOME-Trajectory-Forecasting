@@ -51,7 +51,7 @@ def evaluate(
     model.eval()
     with torch.no_grad():
         for scenario_index in tqdm(range(len(dataset))):
-            scenario: GraphScenarioData = dataset.scenario(scenario_index)
+            scenario: GraphScenarioData = dataset[scenario_index]
             scenario_metrics = {'scenario_city': scenario.city, 'scenario_id': scenario.id}
 
             # forecasting
