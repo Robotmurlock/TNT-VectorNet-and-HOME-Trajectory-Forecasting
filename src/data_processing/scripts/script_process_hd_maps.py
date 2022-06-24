@@ -4,6 +4,8 @@ from typing import Tuple, List, Optional, Any, Union, Set, Collection
 import logging
 import numpy as np
 import pandas as pd
+import fastdtw
+from scipy.spatial.distance import euclidean
 
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
@@ -276,7 +278,7 @@ def process_lane_data(
     radius_scale: float,
     objects_center_points: List[np.ndarray],
     add_neighboring_lanes: bool
-) -> np.ndarray:
+) -> Tuple[np.ndarray, List[int]]:
     """
     Generate feature for lane datasets that are nearby to agent or some object
 
@@ -321,6 +323,7 @@ def process_lane_data(
             object_lane_segment_ids = [lsi for lsi in object_lane_segment_ids if lsi is not None]  # filter `None` values
         lane_segment_id_list.append(object_lane_segment_ids)
     lane_segment_ids = lists.flatten(lane_segment_id_list)
+    lane_segment_ids = list(set(lane_segment_ids))  # remove duplicates
 
     n_lsi = len(lane_segment_ids)
     logger.debug(f'Total number of lane segments is {n_lsi}.')
@@ -353,12 +356,15 @@ def process_lane_data(
     expected_data_shape = (n_lsi, 10, 7)  # polygon shape is 21, number of features is 7
     assert data.shape == expected_data_shape, f'Wrong shape: Expetced {expected_data_shape} but found {data.shape}'
 
-    return data
+    return data, lane_segment_ids
 
 
 def find_and_process_centerline_features(
     avm: ArgoverseMap,
     city: str,
+    lane_features: np.ndarray,
+    lane_ids: List[int],
+    agent_traj_hist: np.ndarray,
     base_agent_traj_hist: np.ndarray,
     center_point: np.ndarray,
     agent_angle: float,
@@ -370,6 +376,9 @@ def find_and_process_centerline_features(
     Args:
         avm: ArgoverseMap API
         city: Map (Miami of Pittsburg)
+        lane_features: Lane segments features
+        lane_ids: Lane segments ids
+        agent_traj_hist: Agent trajectory
         base_agent_traj_hist: Unormalized agent trajectory history (used to find candidate centerlines)
         center_point: Center point
         agent_angle: Rotation angle (normalization)
@@ -384,8 +393,38 @@ def find_and_process_centerline_features(
     agent_velocity = base_agent_traj_hist[-1, :2] - base_agent_traj_hist[-2, :2]  # velocity is here approximated using distance in last step
     radius = max(min_lane_radius, np.sqrt(agent_velocity[0] ** 2 + agent_velocity[1] ** 2) * centerline_radius_scale)
 
-    # Filter duplicates
-    centerlines = avm.get_candidate_centerlines_for_traj(base_agent_traj_hist, city, max_search_radius=radius)
+    # Find initial candidates using dtw with L2 distance
+    dist_lane_id = []
+    agent_traj_coords = agent_traj_hist[:, :2]
+    for index in range(len(lane_ids)):
+        lane = lane_features[index, :, :2]
+        lane_id = lane_ids[index]
+        dist, _ = fastdtw.dtw(lane, agent_traj_coords, dist=euclidean)
+        dist_lane_id.append((dist, lane, lane_id))
+
+    # Take closes 3 lanes as initial candidates
+    dist_lane_id = sorted(dist_lane_id, key=lambda x: x[0])[:3]
+
+    # Filter bad candidates by angle distance
+    filtered_cl_ids = []
+    agent_direction = agent_traj_coords[-1] - agent_traj_coords[0]
+    agent_direction_angle = np.degrees(np.arctan2(agent_direction[1], agent_direction[0]))
+
+    for _, lane, lane_id in dist_lane_id:
+        lane_direction = lane[-1] - lane[0]
+        lane_direction_angle = np.degrees(np.arctan2(lane_direction[1], lane_direction[0]))
+
+        diff_angle = np.abs(agent_direction_angle - lane_direction_angle)
+        if diff_angle > 90:
+            # If angle between agent trajectory and candidate is more than 90 degrees, drop the candidate
+            continue
+
+        filtered_cl_ids.append(lane_id)
+
+    # Run dfs to get succesor of given candidates (the closest lane ids)
+    centerline_ids = \
+        list(set(lists.flatten([lists.flatten(avm.dfs(lsi, city_name=city, threshold=radius)) for lsi in filtered_cl_ids])))
+    centerlines = [avm.get_lane_segment_centerline(lsi, city_name=city)[:, :-1] for lsi in centerline_ids]
     n_centerlines = len(centerlines)
 
     if n_centerlines == 0:
@@ -503,7 +542,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
 
             agent_traj_hist, agent_traj_gt = drop_agent_traj_timestamps(agent_traj_hist, agent_traj_gt)
 
-            lane_features = process_lane_data(
+            lane_features, lane_ids = process_lane_data(
                 avm=self._avm,
                 city=city,
                 agent_center_point=center_point,
@@ -517,6 +556,9 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
             centerline_candidate_features = find_and_process_centerline_features(
                 avm=self._avm,
                 city=city,
+                lane_features=lane_features,
+                lane_ids=lane_ids,
+                agent_traj_hist=agent_traj_hist,
                 base_agent_traj_hist=base_agent_traj_hist,
                 center_point=center_point,
                 agent_angle=agent_y_angle,
