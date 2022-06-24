@@ -26,15 +26,17 @@ def run(config: configparser.GlobalConfig):
     val_input_path = os.path.join(config.global_path, config.graph.train.val_input_path)
     model_storage_path = os.path.join(config.global_path, config.graph.train.output_path)
 
-    train_loader = DataLoader(VectorNetScenarioDataset(train_input_path), batch_size=64, num_workers=8)
-    val_loader = DataLoader(VectorNetScenarioDataset(val_input_path), batch_size=64, num_workers=8)
+    train_config = config.graph.train
+    train_parameters = train_config.parameters
+    train_loader = DataLoader(VectorNetScenarioDataset(train_input_path), batch_size=train_parameters.batch_size, num_workers=train_config.n_workers)
+    val_loader = DataLoader(VectorNetScenarioDataset(val_input_path), batch_size=train_parameters.batch_size, num_workers=train_config.n_workers)
 
     train_parameters = config.graph.train.parameters
     tnt = TargetDrivenForecaster(
-        cluster_size=20,
-        trajectory_length=30,
+        cluster_size=config.graph.data_process.max_polyline_segments,
+        trajectory_length=config.global_parameters.trajectory_future_window_length,
         polyline_features=14,
-        n_targets=6,
+        n_targets=train_parameters.n_targets,
 
         train_config=train_parameters
     )

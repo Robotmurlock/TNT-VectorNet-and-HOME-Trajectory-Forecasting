@@ -136,15 +136,6 @@ class TargetDrivenForecaster(LightningModule):
             'interval': 'epoch',
             'frequency': 1
         }
-        tf_sched = {
-            'scheduler': torch.optim.lr_scheduler.StepLR(
-                optimizer=tf_opt,
-                step_size=self._train_config.tf_sched_step,
-                gamma=self._train_config.tf_sched_gamma
-            ),
-            'interval': 'epoch',
-            'frequency': 1
-        }
 
         return [tg_opt, tf_opt], [tg_sched]
 
