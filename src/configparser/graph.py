@@ -20,6 +20,7 @@ class DataProcessGraphConfig:
 @dataclass
 class GraphTrainConfigParameters:
     epochs: int
+    batch_size: int
     n_targets: int
     tg_lr: float
     tg_sched_step: int
@@ -37,6 +38,7 @@ class GraphTrainConfig:
     output_path: str
     parameters: GraphTrainConfigParameters
     visualize: bool
+    n_workers: int
 
 
 @dataclass

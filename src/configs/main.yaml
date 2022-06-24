@@ -42,16 +42,15 @@ graph:
     normalization_parameter: 25.0
     visualize: False
     visualize_anchors: True
-    skip:
-      - 'train'
-      - 'val'
   train:
     train_input_path: '../../data/internal_graph/train'
     val_input_path: '../../data/internal_graph/val'
     output_path: 'model_storage/vectornet'
     visualize: True
+    n_workers: int
     parameters:
       epochs: 20
+      batch_size: 64
       n_targets: 6
       tg_lr: 0.0001
       tg_sched_step: 10
