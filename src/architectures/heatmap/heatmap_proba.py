@@ -97,22 +97,6 @@ class HeatmapModel(nn.Module):
         return final_output
 
 
-class PixelFocalLoss(nn.Module):
-    def __init__(self):
-        super(PixelFocalLoss, self).__init__()
-
-    def forward(self, pred_heatmap: torch.Tensor, true_heatmap: torch.Tensor, da_area: torch.Tensor) -> torch.Tensor:
-        pred_heatmap = torch.clamp(pred_heatmap, min=1e-6)
-        return torch.mean(da_area * ((pred_heatmap - true_heatmap) ** 2))
-        # return -torch.mean(
-        #     da_area * ((pred_heatmap - true_heatmap) ** 2) * torch.where(
-        #         true_heatmap == 1,
-        #         torch.log(pred_heatmap),
-        #         ((1 - true_heatmap) ** 4) * torch.log(1 - pred_heatmap)
-        #     )
-        # )
-
-
 def test():
     # test encoder
     encoder = RasterEncoder(input_shape=(48, 224, 224))

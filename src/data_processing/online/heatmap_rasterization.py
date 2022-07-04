@@ -1,15 +1,14 @@
 import os
 from pathlib import Path
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple, Optional
 
 import cv2
 import numpy as np
 from argoverse.map_representation.map_api import ArgoverseMap
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
-from utils import steps, image_processing
+from utils import image_processing
 import configparser
 from datasets.data_models import ScenarioData, RectangleBox, RasterScenarioData
 
@@ -255,7 +254,7 @@ def create_heatmap(
     gaussian_filter = gaussian_filter * (1 / gaussian_filter[kernel_halfsize, kernel_halfsize])
     heatmap = cv2.filter2D(heatmap, -1, gaussian_filter)
 
-    heatmap = heatmap * driveable_area[0]  # Set probability to 0 on in non-driveable area
+    heatmap = heatmap * max(driveable_area[0], 0.25)  # Set probability to 0.25 on in non-driveable area
 
     return heatmap
 
@@ -272,61 +271,53 @@ def plot_all_feature_maps(rasterized_features: np.ndarray, path: str, fig: Optio
         fig.savefig(os.path.join(path, f'{feature_index:02d}.png'))
 
 
-def run(config: configparser.GlobalConfig):
-    dpr_config = config.raster.data_process
-    scenario_path = os.path.join(config.global_path, dpr_config.input_path)
-    scenario_paths = [os.path.join(scenario_path, dirname) for dirname in os.listdir(scenario_path)]
-    output_path = os.path.join(config.global_path, dpr_config.output_path)
-    completed_scenarios = set(os.listdir(output_path) if os.path.exists(output_path) else [])
+class ScenarioRasterPreprocess:
+    def __init__(self, config: configparser.GlobalConfig, disable_visualization: bool = False):
+        # configs
+        self._config = config
+        self._params = config.raster.data_process.parameters
+        self._disable_visualization = disable_visualization
 
-    scenarios = [ScenarioData.load(path) for path in scenario_paths]
-    logger.info(f'Found {len(scenarios)} scenarios.')
+        # state
+        self._avm = ArgoverseMap()
+        self._city_cache = {}
+        self._fig = None
 
-    avm = ArgoverseMap()
-    city_da_cache: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
-    agent_window_halfsize = dpr_config.parameters.agent_view_window_size // 2
-    fig = None
-
-    logger.info('Started datasets processing.')
-    for scenario in tqdm(scenarios):
-        if scenario.dirname in completed_scenarios:
-            logger.debug(f'Already processed "{scenario.dirname}".')
-            continue
-
-        if scenario.city not in city_da_cache:
-            logger.debug(f'Loaded drivable area for "{scenario.city}".')
-            city_da_cache[scenario.city] = avm.get_rasterized_driveable_area(scenario.city)
+    def process(self, path: str) -> Tuple[RasterScenarioData, Optional[plt.Figure]]:
+        scenario = ScenarioData.load(path)
+        if scenario.city not in self._city_cache:
+            self._city_cache[scenario.city] = self._avm.get_rasterized_driveable_area(scenario.city)
 
         c_y, c_x = int(scenario.center_point[0]), int(scenario.center_point[1])
-        c_y = int(c_y + city_da_cache[scenario.city][1][0, 2])
-        c_x = int(c_x + city_da_cache[scenario.city][1][1, 2])
+        c_y = int(c_y + self._city_cache[scenario.city][1][0, 2])
+        c_x = int(c_x + self._city_cache[scenario.city][1][1, 2])
 
         view = RectangleBox(
-            up=c_y - agent_window_halfsize,
-            left=c_x - agent_window_halfsize,
-            bottom=c_y + agent_window_halfsize,
-            right=c_x + agent_window_halfsize,
+            up=c_y - self._params.agent_view_window_halfize,
+            left=c_x - self._params.agent_view_window_halfize,
+            bottom=c_y + self._params.agent_view_window_halfize,
+            right=c_x + self._params.agent_view_window_halfize,
         )
         view_normalized = view.move(-c_y, -c_x)
 
-        da_raster = form_driveable_area_raster(da_map=city_da_cache[scenario.city][0], view=view)  # driveable area
+        da_raster = form_driveable_area_raster(da_map=self._city_cache[scenario.city][0], view=view)  # driveable area
 
         agent_trajectory_raster = rasterize_agent_trajectory(
             agent_traj_hist=scenario.agent_traj_hist,
             view=view_normalized,
-            object_shape=dpr_config.parameters.object_shape)
+            object_shape=self._params.object_shape)
         objects_trajectory_raster = rasterize_object_trajectories(
             objects_traj_hists=scenario.objects_traj_hists,
             view=view_normalized,
-            object_shape=dpr_config.parameters.object_shape)
+            object_shape=self._params.object_shape)
         lane_raster = rasterize_lanes(
             lane_features=scenario.lane_features,
             view=view_normalized,
-            centerline_point_shape=dpr_config.parameters.centerline_point_shape)
+            centerline_point_shape=self._params.centerline_point_shape)
         candidate_centerlines_raster = rasterize_candidate_centerlines(
             centerline_candidate_features=scenario.centerline_candidate_features,
             view=view_normalized,
-            centerline_point_shape=dpr_config.parameters.centerline_point_shape)
+            centerline_point_shape=self._params.centerline_point_shape)
 
         rasterized_features = np.vstack([
             da_raster,
@@ -340,9 +331,9 @@ def run(config: configparser.GlobalConfig):
             agent_traj_gt=scenario.agent_traj_gt,
             driveable_area=da_raster,
             view=view_normalized,
-            kernel_size=dpr_config.parameters.gauss_kernel_size,
-            sigma=dpr_config.parameters.gauss_kernel_sigma,
-            object_shape=dpr_config.parameters.object_shape)
+            kernel_size=self._params.gauss_kernel_size,
+            sigma=self._params.gauss_kernel_sigma,
+            object_shape=self._params.object_shape)
 
         raster_scenario = RasterScenarioData(
             id=scenario.id,
@@ -355,21 +346,8 @@ def run(config: configparser.GlobalConfig):
             raster_features=rasterized_features,
             heatmap=heatmap)
 
-        raster_scenario.save(output_path)
-        if dpr_config.visualize:
+        if self._config.raster.data_process.visualize and not self._disable_visualization:
             logger.debug(f'Visualizing data for scenarion "{scenario.dirname}"')
-            fig = raster_scenario.visualize(fig)
-            fig.savefig(os.path.join(output_path, raster_scenario.dirname, 'rasterized_scenario.png'))
-            fig.clf()
+            self._fig = raster_scenario.visualize(self._fig)
 
-        if dpr_config.debug_visualize:
-            plot_all_feature_maps(
-                rasterized_features=rasterized_features,
-                path=os.path.join(output_path, raster_scenario.dirname, 'debug'),
-                fig=fig)
-
-    logger.info('Finished rasterization!')
-
-
-if __name__ == '__main__':
-    run(configparser.config_from_yaml(steps.get_config_path()))
+        return raster_scenario, self._fig
