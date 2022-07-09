@@ -254,7 +254,7 @@ def create_heatmap(
     gaussian_filter = gaussian_filter * (1 / gaussian_filter[kernel_halfsize, kernel_halfsize])
     heatmap = cv2.filter2D(heatmap, -1, gaussian_filter)
 
-    heatmap = heatmap * max(driveable_area[0], 0.25)  # Set probability to 0.25 on in non-driveable area
+    heatmap = heatmap * driveable_area[0]  # Set probability to 0 on in non-driveable area
 
     return heatmap
 

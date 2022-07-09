@@ -3,6 +3,7 @@ from typing import List, Tuple
 from torch.utils.data import Dataset
 import torch
 
+
 from datasets.data_models.scenario import ScenarioData
 
 
@@ -40,9 +41,9 @@ class ScenarioDatasetTorchWrapper(Dataset):
         """
         self.dataset = ScenarioDataset(path)
 
-    def __getitem__(self, index: int) -> Tuple[Tuple[torch.Tensor, ...], Tuple[torch.Tensor, ...]]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         scenario_data = self.dataset[index]
-        return scenario_data.features, scenario_data.ground_truth
+        return torch.tensor(scenario_data.agent_traj_hist, dtype=torch.float32), scenario_data.ground_truth, scenario_data.final_point_gt
 
     def __len__(self) -> int:
         return len(self.dataset)

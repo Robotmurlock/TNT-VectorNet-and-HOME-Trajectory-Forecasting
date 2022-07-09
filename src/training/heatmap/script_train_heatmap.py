@@ -3,7 +3,8 @@ import os
 import configparser
 from utils import steps
 from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDatasetTorchWrapper
-from architectures.heatmap.model import HeatmapModel, PixelFocalLoss
+from architectures.heatmap.heatmap_proba import HeatmapModel
+from architectures.heatmap.loss import PixelFocalLoss
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -48,6 +49,9 @@ def run(config: configparser.GlobalConfig):
             n_steps += 1
 
         logging.info(f'[Epoch-{epoch}]: loss={total_loss:.4f}.')
+
+    Path(os.path.join(config.global_path, 'model_storage', 'heatmap_targets')).mkdir(exist_ok=True, parents=True)
+    torch.save(model.state_dict(), os.path.join(config.global_path, 'model_storage', 'heatmap_targets', 'last.ckpt'))
 
     fig = plt.figure(figsize=(10, 8))
     model.eval()

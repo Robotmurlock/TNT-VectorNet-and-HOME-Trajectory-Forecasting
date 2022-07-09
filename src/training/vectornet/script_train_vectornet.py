@@ -1,6 +1,5 @@
 """
 Trains VectorNet model using PytorchLighting trainer
-TODO: Refactor constants
 """
 import os
 from pytorch_lightning import Trainer
@@ -31,7 +30,6 @@ def run(config: configparser.GlobalConfig):
     train_loader = DataLoader(VectorNetScenarioDataset(train_input_path), batch_size=train_parameters.batch_size, num_workers=train_config.n_workers)
     val_loader = DataLoader(VectorNetScenarioDataset(val_input_path), batch_size=train_parameters.batch_size, num_workers=train_config.n_workers)
 
-    train_parameters = config.graph.train.parameters
     tnt = TargetDrivenForecaster(
         cluster_size=config.graph.data_process.max_polyline_segments,
         trajectory_length=config.global_parameters.trajectory_future_window_length,

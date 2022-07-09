@@ -36,7 +36,6 @@ class GraphScenarioDataset:
             yield self[index]
 
 
-
 class VectorNetScenarioDataset(Dataset):
     def __init__(self, path: str):
         """
