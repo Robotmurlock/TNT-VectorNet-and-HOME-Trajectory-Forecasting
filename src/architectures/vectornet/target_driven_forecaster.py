@@ -111,6 +111,7 @@ class TargetDrivenForecaster(LightningModule):
 
         self._log_history['end_to_end_val_loss'].append(e2e_val_loss)
 
+        # FIXME: validation is logged into training loss :'(
         loss = self.training_step(batch, *args, **kwargs)
         self._log_history['val_loss'].append(loss)
 

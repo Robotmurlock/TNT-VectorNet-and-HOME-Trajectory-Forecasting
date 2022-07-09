@@ -13,6 +13,10 @@ class DataProcessRasterizationParametersConfig:
     gauss_kernel_size: int
     gauss_kernel_sigma: int
 
+    @property
+    def agent_view_window_halfize(self) -> int:
+        return self.agent_view_window_size // 2
+
 
 @dataclass
 class DataProcessRasterizationConfig:
@@ -24,12 +28,31 @@ class DataProcessRasterizationConfig:
 
 
 @dataclass
-class RasterizationTrainConfig:
+class RasterizationTrainHeatmapConfig:
     input_path: str
     output_path: str
 
 
 @dataclass
+class RasterizationTrainTrajectoryForecasterParametersConfig:
+    epochs: int
+    batch_size: int
+    lr: float
+    sched_step: int
+    sched_gamma: float
+
+
+@dataclass
+class RasterizationTrainTrajectoryForecasterConfig:
+    train_input_path: str
+    val_input_path: str
+    output_path: str
+    n_workers: int
+    parameters: RasterizationTrainTrajectoryForecasterParametersConfig
+
+
+@dataclass
 class RasterConfig:
     data_process: DataProcessRasterizationConfig
-    train: RasterizationTrainConfig
+    train_heatmap: RasterizationTrainHeatmapConfig
+    train_tf: RasterizationTrainTrajectoryForecasterConfig

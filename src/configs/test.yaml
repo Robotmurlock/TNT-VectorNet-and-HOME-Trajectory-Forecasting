@@ -19,7 +19,7 @@ data_process:
     min_lane_radius: 50.0
 raster:
   data_process:
-    input_path: 'test_data/internal'
+    input_path: 'test_data/internal/train'
     output_path: 'test_data/internal_graph'
     visualize: True
     debug_visualize: True
@@ -29,9 +29,20 @@ raster:
       centerline_point_shape: [6, 6]
       gauss_kernel_size: 25
       gauss_kernel_sigma: 4
-  train:
-    input_path: 'test_data/internal_rasterized'
-    output_path: 'model_storage/heatmap'
+  train_tf:
+    train_input_path: 'test_data/internal/train'
+    val_input_path: 'test_data/internal/val'
+    output_path: 'model_storage/heatmap_tf'
+    n_workers: 8
+    parameters:
+      epochs: 100
+      lr: 0.01
+      batch_size: 8
+      sched_step: 60
+      sched_gamma: 0.1
+  train_heatmap:
+    input_path: 'x'
+    output_path: 'y'
 graph:
   data_process:
     input_path: 'test_data/internal'
@@ -46,9 +57,11 @@ graph:
     val_input_path: 'test_data/internal_graph/val'
     output_path: 'model_storage/vectornet'
     visualize: True
+    n_workers: 8
     parameters:
       epochs: 150
       n_targets: 6
+      batch_size: 8
       tg_lr: 0.001
       tg_sched_step: 50
       tg_sched_gamma: 0.1

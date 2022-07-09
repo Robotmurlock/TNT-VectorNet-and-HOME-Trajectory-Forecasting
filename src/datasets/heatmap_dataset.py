@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 import torch
 
 from datasets.data_models.raster_scenario import RasterScenarioData
-from data_processing.online.rasterization import ScenarioRasterPreprocess
+from data_processing.online.heatmap_rasterization import ScenarioRasterPreprocess
 import configparser
 
 

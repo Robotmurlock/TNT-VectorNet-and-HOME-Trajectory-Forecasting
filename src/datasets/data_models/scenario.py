@@ -36,11 +36,15 @@ class ScenarioData:
         return tuple(torch.tensor(item, dtype=torch.float32) for item in items)
 
     @property
-    def ground_truth(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def ground_truth(self) -> torch.Tensor:
         """
         Returns: Ground truth for PyTorch models
         """
-        return torch.tensor(self.agent_traj_gt, dtype=torch.float32), torch.tensor(self.objects_traj_gts, dtype=torch.float32)
+        return torch.tensor(self.agent_traj_gt, dtype=torch.float32)
+
+    @property
+    def final_point_gt(self) -> torch.Tensor:
+        return torch.tensor(self.agent_traj_gt[-1, :], dtype=torch.float32)
 
     def save(self, path: str) -> None:
         """
