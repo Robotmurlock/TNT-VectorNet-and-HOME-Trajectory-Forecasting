@@ -162,16 +162,19 @@ class RasterScenarioData:
         else:
             fig.clf()
 
-
         if heatmap is not None:
-            # heatmap = np.maximum(heatmap, self.heatmap)
-            plt.imshow(heatmap, origin='lower', cmap='gray')
+            img = np.zeros(shape=(self.heatmap.shape[0], self.heatmap.shape[1], 3))
+            img[:, :, 1] = 0.6*self.heatmap
+            img[:, :, 2] = heatmap / np.max(heatmap)
+            for i in range(3):
+                img[:, :, i] = np.maximum(img[:, :, i], 0.25*self.raster_features[0, :, :])
+            plt.imshow(img, origin='lower', cmap='gray')
 
         # plot agent
         agent_traj_hist = trajectories.rotate_points(self.agent_traj_hist, -self.angle) + 112
         agent_traj_gt = trajectories.rotate_points(self.agent_traj_gt, -self.angle) + 112
-        plt.plot(agent_traj_hist[:, 0], agent_traj_hist[:, 1], color='green', linewidth=7, label='Agent history')
-        plt.plot(agent_traj_gt[:, 0], agent_traj_gt[:, 1], color='lightgreen', linewidth=7, label='Agent Ground Truth')
+        plt.plot(agent_traj_hist[:, 0], agent_traj_hist[:, 1], color='darkgreen', linewidth=7, label='Agent history')
+        plt.plot(agent_traj_gt[:, 0], agent_traj_gt[:, 1], color='yellow', linewidth=7, label='Agent Ground Truth')
         if agent_forecast is not None:
             if len(agent_forecast.shape) == 2:
                 # In case of single forecasts, reshape it as (1, traj_length, 2)
@@ -182,10 +185,9 @@ class RasterScenarioData:
             for f_index in range(n_forecasts):
                 agent_forecast[f_index, :] = trajectories.rotate_points(agent_forecast[f_index, :], -self.angle) + 112
                 plt.plot(agent_forecast[f_index, :, 0], agent_forecast[f_index, :, 1],
-                         color='turquoise', linewidth=3, label='Agent Forecast')
+                         color='orange', linewidth=3, label='Agent Forecast')
 
         if targets is not None:
-            targets = trajectories.rotate_points(targets - 112, -self.angle) + 112
             plt.scatter(targets[:, 0], targets[:, 1], color='red', s=200)
 
         plt.scatter(agent_traj_hist[-1:, 0], agent_traj_hist[-1:, 1], color='teal', s=200)

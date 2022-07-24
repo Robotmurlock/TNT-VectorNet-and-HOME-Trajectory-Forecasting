@@ -5,12 +5,13 @@ from typing import Union
 
 
 class ModalitySampler(nn.Module):
-    def __init__(self, n_targets: int, radius: int, device: Union[str, torch.device]):
+    def __init__(self, n_targets: int, radius: int, device: Union[str, torch.device], swap_rc: bool = True):
         super(ModalitySampler, self).__init__()
         self._n_targets = n_targets
         self._radius = radius
         self._reclen = 2*self._radius+1
         self._device = device
+        self._swap_rc = swap_rc
 
     def _init_rec_sum(self, row: int, heatmap: torch.Tensor) -> float:
         rec_sum = 0.0
@@ -55,7 +56,10 @@ class ModalitySampler(nn.Module):
 
                         curr_sum = self._next_rec_sum(curr_sum, row, col, hm)
 
-                result.append([best_row+self._radius, best_col+self._radius])
+                coords = [best_row+self._radius, best_col+self._radius]
+                if self._swap_rc:
+                    coords = [coords[1], coords[0]]  # swap row/col coords
+                result.append(coords)
                 hm = self._clear_rec(best_row, best_col, hm)
 
             result_all.append(torch.tensor(result, dtype=torch.long))
@@ -121,7 +125,7 @@ def test():
     kernel = gkern()
     heatmap = heatmap * kernel
 
-    modality_sampler = ModalitySampler(n_targets=6, radius=2, device='cpu')
+    modality_sampler = ModalitySampler(n_targets=6, radius=2, device='cpu', swap_rc=False)
     modal_clusters = modality_sampler(heatmap)
 
     print(modal_clusters.shape)
