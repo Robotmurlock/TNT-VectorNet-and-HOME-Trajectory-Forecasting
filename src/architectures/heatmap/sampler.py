@@ -1,17 +1,16 @@
 import torch
 import torch.nn as nn
 import numpy as np
-
-
-import matplotlib.pyplot as plt
+from typing import Union
 
 
 class ModalitySampler(nn.Module):
-    def __init__(self, n_targets: int, radius: int):
+    def __init__(self, n_targets: int, radius: int, device: Union[str, torch.device]):
         super(ModalitySampler, self).__init__()
         self._n_targets = n_targets
         self._radius = radius
         self._reclen = 2*self._radius+1
+        self._device = device
 
     def _init_rec_sum(self, row: int, heatmap: torch.Tensor) -> float:
         rec_sum = 0.0
@@ -35,7 +34,7 @@ class ModalitySampler(nn.Module):
 
     def forward(self, heatmap: torch.Tensor) -> torch.Tensor:
         batch_size = heatmap.shape[0]
-        hm_all = heatmap.detach().numpy().copy()
+        hm_all = heatmap.detach().cpu().numpy().copy()
         result_all = []
 
         for index in range(batch_size):
@@ -61,7 +60,7 @@ class ModalitySampler(nn.Module):
 
             result_all.append(torch.tensor(result, dtype=torch.long))
 
-        return torch.stack(result_all)
+        return torch.stack(result_all).to(self._device)
 
 
 class KMeansProbSampler(nn.Module):
@@ -122,7 +121,7 @@ def test():
     kernel = gkern()
     heatmap = heatmap * kernel
 
-    modality_sampler = ModalitySampler(n_targets=6, radius=2)
+    modality_sampler = ModalitySampler(n_targets=6, radius=2, device='cpu')
     modal_clusters = modality_sampler(heatmap)
 
     print(modal_clusters.shape)
