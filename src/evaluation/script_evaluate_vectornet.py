@@ -14,7 +14,8 @@ def run(config: configparser.GlobalConfig):
         cluster_size=20,
         trajectory_length=30,
         polyline_features=14,
-        n_targets=6
+        n_trajectories=6,
+        n_targets=12
     )
     loss = LiteTNTLoss()
 

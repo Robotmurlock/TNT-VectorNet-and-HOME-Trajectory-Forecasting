@@ -60,19 +60,23 @@ def evaluate(
                 scenario.target_ground_truth.to(device).unsqueeze(0), scenario.ground_truth_trajectory_difference.to(device).unsqueeze(0)
 
             outputs = model(polylines, anchors)
-            total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss = loss(
+            total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_ce_loss = loss(
                 anchors=outputs['all_anchors'],
                 offsets=outputs['all_offsets'],
-                confidences=outputs['all_confidences'],
+                confidences=outputs['all_target_confidences'],
                 ground_truth=ground_truth,
-                forecasts=outputs['forecasts'],
+                forecasts=outputs['all_forecasts'],
+                traj_conf=outputs['all_forecast_scores'],
                 gt_traj=gt_traj)
 
-            forecasts, targets, anchors = outputs['forecasts'][0], outputs['targets'][0], outputs['anchors'][0]
+            forecasts, targets, anchors, all_forecasts = \
+                outputs['forecasts'][0], outputs['targets'][0], outputs['anchors'][0], outputs['all_forecasts'][0]
             forecasts = forecasts.cumsum(axis=1)  # transform differences to trajectory
+            all_forecasts = all_forecasts.cumsum(axis=1)  # transform differences to trajectory
             gt_traj = gt_traj[0].cumsum(axis=0)  # transform differences to trajectory
             forecasts_scaled = forecasts * scale
             gt_traj_scaled = gt_traj * scale
+            # all_forecasts = all_forecasts * scale
 
             # Agent evaluation
             agent_min_ade, _ = metrics.minADE(forecasts_scaled, gt_traj_scaled)
@@ -85,11 +89,12 @@ def evaluate(
             tg_ce_loss = tg_ce_loss.detach().item()
             tg_huber_loss = tg_huber_loss.detach().item()
             tf_huber_loss = tf_huber_loss.detach().item()
+            tf_conf_loss = tf_ce_loss.detach().item()
             logger.debug(f'[{scenario.dirname}]')
             logger.debug(f'\tEvaluation (end-to-end): minADE={agent_min_ade:.2f}, minFDE={agent_min_fde:.2f}')
             logger.debug(f'\tLosses (all): total_loss={total_loss:.4f}')
             logger.debug(f'\tLosses (targets): tg_ce_loss={tg_ce_loss:.4f}, tg_huber_loss={tg_huber_loss:.4f}')
-            logger.debug(f'\tLosses (trajs): tf_huber_loss={tf_huber_loss:.4f}')
+            logger.debug(f'\tLosses (trajs): tf_huber_loss={tf_huber_loss:.4f}, tf_conf_loss={tf_conf_loss:.4f}')
 
             # Deducing error class
             scenario_metrics['agent'] = {
@@ -120,7 +125,8 @@ def evaluate(
                 fig = scenario.visualize(
                     fig=fig,
                     chosen_anchors=anchors.cpu().numpy(),
-                    agent_traj_forecast=forecasts.cpu().numpy(),
+                    agent_traj_forecast=forecasts.cpu().numpy().copy(),
+                    all_agent_traj_forecast=all_forecasts.cpu().numpy().copy(),
                     targets_prediction=targets.cpu().numpy(),
                     scale=scale,
                     visualize_anchors=True,

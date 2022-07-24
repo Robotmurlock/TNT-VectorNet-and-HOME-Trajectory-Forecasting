@@ -22,6 +22,7 @@ class GraphTrainConfigParameters:
     epochs: int
     batch_size: int
     n_targets: int
+    n_trajectories: int
     tg_lr: float
     tg_sched_step: int
     tg_sched_gamma: float

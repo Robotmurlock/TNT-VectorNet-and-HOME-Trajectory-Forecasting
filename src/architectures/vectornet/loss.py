@@ -61,11 +61,30 @@ class ForecastingLoss(nn.Module):
         return self._huber(forecasts, gt_traj_expanded)
 
 
+class ForecastingScoringLoss(nn.Module):
+    def __init__(self):
+        super(ForecastingScoringLoss, self).__init__()
+        self._bce = nn.BCELoss(reduction='sum')
+
+    def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
+        gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
+        gt_conf = F.softmax(
+            -torch.sum(
+                torch.sqrt(
+                    torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
+                    + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2)
+                ), dim=-1
+            ), dim=1
+        )
+        return self._bce(gt_conf, conf)
+
+
 class LiteTNTLoss(nn.Module):
     def __init__(self, targets_delta: float = 0.04, forecasting_delta: float = 0.04):
         super(LiteTNTLoss, self).__init__()
         self._tg_loss = TargetsLoss(delta=targets_delta)
         self._tf_loss = ForecastingLoss(delta=forecasting_delta)
+        self._tfs_loss = ForecastingScoringLoss()
 
     def forward(
         self,
@@ -74,13 +93,15 @@ class LiteTNTLoss(nn.Module):
         confidences: torch.Tensor,
         ground_truth: torch.Tensor,
         forecasts: torch.Tensor,
+        traj_conf: torch.Tensor,
         gt_traj: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         _, tg_ce_loss, tg_huber_loss = self._tg_loss(anchors, offsets, confidences, ground_truth)
         tf_huber_loss = self._tf_loss(forecasts, gt_traj)
+        tf_conf_loss = self._tfs_loss(traj_conf, forecasts, gt_traj)
 
-        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss
-        return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss
+        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss + 0.1*tf_conf_loss
+        return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_conf_loss
 
 
 def main():
@@ -117,6 +138,22 @@ def main():
     ], dtype=torch.float32)
 
     print(f_criteria(forecasts, ground_truth))
+
+    # Test forecasting scoring loss
+    fs_criteria = ForecastingScoringLoss()
+    forecasts = torch.tensor([
+        [[[0, 0], [1, 1.2], [2, 2.4]], [[0, 0], [1, 1], [20, 30]]],
+        [[[0, 0], [2, 2], [4, 4]], [[0.1, 0.1], [2.1, 2.1], [4.1, 4.1]]]
+    ], dtype=torch.float32)
+    ground_truth = torch.tensor([
+        [[0, 0], [1, 1], [2, 2]],
+        [[0, 0], [2, 2], [4, 4]],
+    ], dtype=torch.float32)
+    confs = torch.tensor([
+        [1, 0], [0.6, 0.4]
+    ], dtype=torch.float32)
+
+    print(fs_criteria(confs, forecasts, ground_truth))
 
 
 if __name__ == '__main__':
