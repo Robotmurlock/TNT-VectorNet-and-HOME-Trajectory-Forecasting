@@ -48,7 +48,7 @@ class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         scenario_data = self.dataset[index]
         raster_features = torch.tensor(scenario_data.raster_features, dtype=torch.float32)
-        da_area = torch.tensor(scenario_data.raster_features[-1, ...], dtype=torch.float32)
+        da_area = torch.tensor(scenario_data.raster_features[0, ...], dtype=torch.float32)
         agent_traj_hist = torch.tensor(2 * scenario_data.agent_traj_hist / scenario_data.window_size, dtype=torch.float32)
         gt_heatmap = torch.unsqueeze(torch.tensor(scenario_data.heatmap, dtype=torch.float32), dim=0)
 

@@ -35,10 +35,11 @@ def run(config: configparser.GlobalConfig):
         total_loss = 0.0
         n_steps = 0
 
-        for (raster, trajectory, da_area), heatmap in data_loader:
+        for data in data_loader:
             optimizer.zero_grad()
 
-            raster, trajectory, da_area, true_heatmap = raster.to(device), trajectory.to(device), da_area.to(device), heatmap.to(device)
+            raster, trajectory, da_area, true_heatmap = data['raster'].to(device), data['agent_traj_hist'].to(device), \
+                data['da_area'].to(device), data['heatmap'].to(device)
             pred_heatmap = model(raster, trajectory)
 
             loss = criteria(pred_heatmap, true_heatmap, da_area)
@@ -59,8 +60,10 @@ def run(config: configparser.GlobalConfig):
     Path(result_path).mkdir(parents=True, exist_ok=True)
     data_loader = DataLoader(dataset, batch_size=1, num_workers=4)
     index = 0
-    for (raster, trajectory, da_area), heatmap in data_loader:
-        raster, trajectory, da_area, true_heatmap = raster.to(device), trajectory.to(device), da_area.to(device), heatmap.to(device)
+
+    for data in data_loader:
+        raster, trajectory, da_area, true_heatmap = data['raster'].to(device), data['agent_traj_hist'].to(device), \
+            data['da_area'].to(device), data['heatmap'].to(device)
         pred_heatmap = (model(raster, trajectory) * da_area).detach().cpu().numpy()
         true_heatmap = true_heatmap.detach().cpu().numpy()
         fig.clf()
