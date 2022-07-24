@@ -21,6 +21,12 @@ class ScenarioData:
     centerline_candidate_features: np.ndarray
 
     @property
+    def ground_truth_trajectory_difference(self) -> torch.Tensor:
+        diffs = self.agent_traj_gt.copy()
+        diffs[1:, :] = diffs[1:, :] - diffs[:-1, :]
+        return torch.tensor(diffs, dtype=torch.float32)
+
+    @property
     def dirname(self) -> str:
         """
         Returns: Scenario dirname

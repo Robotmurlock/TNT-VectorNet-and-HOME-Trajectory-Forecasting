@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from typing import Tuple
+from typing import Tuple, Dict, Union
 
 
-from architectures.heatmap import HeatmapModel, ModalitySampler, TrajectoryForecaster
+from architectures.heatmap import HeatmapModel, ModalitySampler, LightningTrajectoryForecaster
 
 
 class HeatmapTrajectoryForecaster(nn.Module):
@@ -13,6 +13,7 @@ class HeatmapTrajectoryForecaster(nn.Module):
         decoder_input_shape: Tuple[int, int, int],
         traj_features: int,
         traj_length: int,
+        device: Union[str, torch.device],
 
         n_targets: int,
         radius: int
@@ -25,19 +26,35 @@ class HeatmapTrajectoryForecaster(nn.Module):
             traj_length=traj_length
         )
 
-        self._target_sampler = ModalitySampler(n_targets=n_targets, radius=radius)
+        self._target_sampler = ModalitySampler(n_targets=n_targets, radius=radius, device=device)
 
-        self._forecaster = TrajectoryForecaster(in_features=traj_features, trajectory_future_length=traj_length)
+        # FIXME
+        self._traj_features = traj_features
+        self._traj_length = traj_length
+        self._forecaster = None
 
-    def forward(self, raster: torch.Tensor, agent_traj_hist: torch.Tensor) -> torch.Tensor:
-        heatmap = self._heatmap_estimator(raster, agent_traj_hist)
+    def forward(self, raster: torch.Tensor, agent_traj_hist: torch.Tensor, da_area: torch.Tensor) -> Dict[str, torch.Tensor]:
+        heatmap = self._heatmap_estimator(raster, agent_traj_hist) * da_area
         targets = self._target_sampler(heatmap)
         forecasts = self._forecaster(agent_traj_hist, targets)
-        return forecasts
+        return {
+            'forecasts': forecasts,
+            'targets': targets,
+            'heatmap': heatmap
+        }
 
     def load_weights(self, heatmap_estimator_path: str, trajectory_forecater_path: str) -> None:
         self._heatmap_estimator.load_state_dict(torch.load(heatmap_estimator_path))
-        self._forecaster.load_state_dict(torch.load(trajectory_forecater_path))
+
+        # FIXME
+        self._forecaster = LightningTrajectoryForecaster.load_from_checkpoint(
+            checkpoint_path=trajectory_forecater_path,
+            traj_features=self._traj_features,
+            traj_length=self._traj_length,
+            train_config=None,
+            in_features=3,
+            trajectory_future_length=30
+        )
 
 
 def test():
@@ -51,7 +68,8 @@ def test():
         traj_length=20,
 
         n_targets=6,
-        radius=2
+        radius=2,
+        device='cpu'
     )
 
     outputs = htf(raster, trajectory)

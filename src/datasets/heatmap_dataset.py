@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import List, Dict
 from torch.utils.data import Dataset
 import torch
 
@@ -12,7 +12,7 @@ class HeatmapOutputRasterScenarioDataset:
     def __init__(self, config: configparser.GlobalConfig):
         """
         Dataset for loading processed rasterized files
-
+RasterScenarioData
         Args:
             config: Config
         """
@@ -45,14 +45,23 @@ class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
         """
         self.dataset = HeatmapOutputRasterScenarioDataset(config)
 
-    def __getitem__(self, index: int) -> Tuple[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]:
+    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         scenario_data = self.dataset[index]
         raster_features = torch.tensor(scenario_data.raster_features, dtype=torch.float32)
-        da_area = torch.tensor(scenario_data.raster_features[:-1, ...], dtype=torch.float32)
+        da_area = torch.tensor(scenario_data.raster_features[-1, ...], dtype=torch.float32)
         agent_traj_hist = torch.tensor(2 * scenario_data.agent_traj_hist / scenario_data.window_size, dtype=torch.float32)
         gt_heatmap = torch.unsqueeze(torch.tensor(scenario_data.heatmap, dtype=torch.float32), dim=0)
 
-        return (raster_features, agent_traj_hist, da_area), gt_heatmap
+        return {
+            'raster': raster_features,
+            'agent_traj_hist': agent_traj_hist,
+            'agent_traj_diff': scenario_data.ground_truth_trajectory_difference,
+            'da_area': da_area,
+            'heatmap': gt_heatmap,
+            'id': scenario_data.id,
+            'city': scenario_data.city,
+            'heatmap_gt': torch.tensor(scenario_data.heatmap, dtype=torch.float32)
+        }
 
     def __len__(self) -> int:
         return len(self.dataset)

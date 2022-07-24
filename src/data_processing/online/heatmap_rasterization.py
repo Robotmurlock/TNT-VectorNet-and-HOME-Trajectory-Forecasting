@@ -344,7 +344,9 @@ class ScenarioRasterPreprocess:
             objects_traj_hists=scenario.objects_traj_hists,
             objects_traj_gts=scenario.objects_traj_gts,
             raster_features=rasterized_features,
-            heatmap=heatmap)
+            heatmap=heatmap,
+            angle=scenario.angle
+        )
 
         if self._config.raster.data_process.visualize and not self._disable_visualization:
             logger.debug(f'Visualizing data for scenarion "{scenario.dirname}"')

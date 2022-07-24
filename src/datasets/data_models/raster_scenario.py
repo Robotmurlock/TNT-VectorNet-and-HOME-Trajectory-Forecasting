@@ -2,9 +2,12 @@ from dataclasses import dataclass
 import numpy as np
 from pathlib import Path
 import os
-from typing import Optional, Tuple
+from typing import Optional
 import matplotlib.pyplot as plt
 import torch
+
+
+from utils import trajectories
 
 
 @dataclass
@@ -18,6 +21,13 @@ class RasterScenarioData:
     objects_traj_gts: np.ndarray
     raster_features: np.ndarray
     heatmap: np.ndarray
+    angle: float
+
+    @property
+    def ground_truth_trajectory_difference(self) -> torch.Tensor:
+        diffs = self.agent_traj_gt.copy()
+        diffs[1:, :] = diffs[1:, :] - diffs[:-1, :]
+        return torch.tensor(diffs, dtype=torch.float32)
 
     @property
     def dirname(self) -> str:
@@ -76,7 +86,7 @@ class RasterScenarioData:
 
         return cls(**catalog)
 
-    def visualize(
+    def visualize_heatmap(
         self,
         fig: Optional[plt.Figure] = None
     ) -> plt.Figure:
@@ -113,7 +123,7 @@ class RasterScenarioData:
             image[:, :, i] = np.maximum(image[:, :, i], self.heatmap)
 
         # Show image
-        plt.imshow(image, origin='lower', cmap='gray')
+        plt.imshow(image, origin='lower', cmap='YlOrRd')
 
         # set title and axis info
         plt.title(f'Rasterized Scenario {self.id}')
@@ -121,3 +131,74 @@ class RasterScenarioData:
         plt.ylabel('Y')
 
         return fig
+
+    def visualize(
+        self,
+        fig: Optional[plt.Figure] = None,
+        targets: Optional[np.ndarray] = None,
+        agent_forecast: Optional[np.ndarray] = None,
+        heatmap: Optional[np.ndarray] = None
+    ) -> plt.Figure:
+        """
+        Visualizes scenario with:
+            - agent
+            - neighbor objects
+            - nearby centerlines
+            - candidate centerlines
+            - agent forecast (optional)
+            - objects (neighbors) forecasts (optional)
+
+        Args:
+            fig: Figure (if None then new one is created otherwise old one is cleared)
+                Make sure to always use same figure instead of creating multiple ones
+            targets:
+            heatmap:
+            agent_forecast: Agent forecast trajectory (optional)
+
+        Returns: Figure
+        """
+        if fig is None:
+            fig = plt.figure(figsize=(20, 14))
+        else:
+            fig.clf()
+
+
+        if heatmap is not None:
+            # heatmap = np.maximum(heatmap, self.heatmap)
+            plt.imshow(heatmap, origin='lower', cmap='gray')
+
+        # plot agent
+        agent_traj_hist = trajectories.rotate_points(self.agent_traj_hist, -self.angle) + 112
+        agent_traj_gt = trajectories.rotate_points(self.agent_traj_gt, -self.angle) + 112
+        plt.plot(agent_traj_hist[:, 0], agent_traj_hist[:, 1], color='green', linewidth=7, label='Agent history')
+        plt.plot(agent_traj_gt[:, 0], agent_traj_gt[:, 1], color='lightgreen', linewidth=7, label='Agent Ground Truth')
+        if agent_forecast is not None:
+            if len(agent_forecast.shape) == 2:
+                # In case of single forecasts, reshape it as (1, traj_length, 2)
+                agent_forecast = agent_forecast.reshape(1, *agent_forecast.shape)
+            assert len(agent_forecast.shape) == 3, 'Invalid agent forecast shape!'
+
+            n_forecasts = agent_forecast.shape[0]
+            for f_index in range(n_forecasts):
+                agent_forecast[f_index, :] = trajectories.rotate_points(agent_forecast[f_index, :], -self.angle) + 112
+                plt.plot(agent_forecast[f_index, :, 0], agent_forecast[f_index, :, 1],
+                         color='turquoise', linewidth=3, label='Agent Forecast')
+
+        if targets is not None:
+            targets = trajectories.rotate_points(targets - 112, -self.angle) + 112
+            plt.scatter(targets[:, 0], targets[:, 1], color='red', s=200)
+
+        plt.scatter(agent_traj_hist[-1:, 0], agent_traj_hist[-1:, 1], color='teal', s=200)
+
+        # remove duplicated labels
+        handles, labels = plt.gca().get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        plt.legend(by_label.values(), by_label.keys(), loc='upper right')
+
+        # set title and axis info
+        plt.title(f'Scenario {self.id}')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+
+        return fig
+
