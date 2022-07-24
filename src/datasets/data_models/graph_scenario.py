@@ -99,6 +99,7 @@ class GraphScenarioData:
         chosen_anchors: Optional[np.ndarray] = None,
         targets_prediction: Optional[np.ndarray] = None,
         agent_traj_forecast: Optional[np.ndarray] = None,
+        all_agent_traj_forecast: Optional[np.ndarray] = None,
         scale: Optional[float] = None
     ) -> plt.Figure:
         """
@@ -138,17 +139,18 @@ class GraphScenarioData:
                           color=object_type.color, label=object_type.label, length_includes_head=True,
                           head_width=0.02, head_length=0.02, zorder=5)
 
-        if agent_traj_forecast is not None:
-            if len(agent_traj_forecast.shape) == 2:
-                # In case of single forecasts, reshape it as (1, traj_length, 2)
-                agent_traj_forecast = agent_traj_forecast.reshape(1, *agent_traj_forecast.shape)
-            assert len(agent_traj_forecast.shape) == 3, 'Invalid agent forecast shape!'
-            agent_traj_forecast = agent_traj_forecast * scale if scale is not None else agent_traj_forecast
+        for atf, color, zorder in [(all_agent_traj_forecast, 'lightgray', 10), (agent_traj_forecast, 'lime', 11)]:
+            if atf is not None:
+                if len(atf.shape) == 2:
+                    # In case of single forecasts, reshape it as (1, traj_length, 2)
+                    atf = atf.reshape(1, *atf.shape)
+                assert len(agent_traj_forecast.shape) == 3, 'Invalid agent forecast shape!'
+                atf = atf * scale if scale is not None else atf
 
-            n_forecasts = agent_traj_forecast.shape[0]
-            for f_index in range(n_forecasts):
-                plt.plot(agent_traj_forecast[f_index, :, 0], agent_traj_forecast[f_index, :, 1],
-                         color='lime', linewidth=5, label='forecast', zorder=10)
+                n_forecasts = atf.shape[0]
+                for f_index in range(n_forecasts):
+                    plt.plot(atf[f_index, :, 0], atf[f_index, :, 1],
+                             color=color, linewidth=5, label='forecast', zorder=zorder)
 
         # Plot ground truth trajectory
         agent_traj_gt = self.agent_traj_gt * scale if scale is not None else self.agent_traj_gt
