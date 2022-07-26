@@ -36,9 +36,9 @@ raster:
     n_workers: 8
     parameters:
       epochs: 20
-      lr: 0.001
+      lr: 0.01
       batch_size: 8
-      sched_step: 60
+      sched_step: 10
       sched_gamma: 0.1
   train_heatmap:
     input_path: 'x'
@@ -50,7 +50,7 @@ graph:
     max_polyline_segments: 20
     max_polylines: 300
     normalization_parameter: 25.0
-    visualize: False
+    visualize: True
     visualize_anchors: True
   train:
     train_input_path: 'test_data/internal_graph/train'
@@ -59,13 +59,14 @@ graph:
     visualize: True
     n_workers: 8
     parameters:
-      epochs: 150
+      epochs: 60
       n_targets: 6
+      n_trajectories: 6
       batch_size: 8
-      tg_lr: 0.001
+      tg_lr: 0.01
       tg_sched_step: 50
       tg_sched_gamma: 0.1
-      tf_lr: 0.001
+      tf_lr: 0.011
       tf_sched_step: 50
       tf_sched_gamma: 0.1
       huber_delta: 0.04

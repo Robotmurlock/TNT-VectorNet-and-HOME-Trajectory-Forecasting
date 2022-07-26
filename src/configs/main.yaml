@@ -51,7 +51,8 @@ graph:
     parameters:
       epochs: 20
       batch_size: 64
-      n_targets: 6
+      n_targets: 20
+      n_trajectories: 6
       tg_lr: 0.0001
       tg_sched_step: 10
       tg_sched_gamma: 0.1

@@ -3,7 +3,6 @@ import logging
 import numpy as np
 from typing import List
 import random
-import math
 
 from utils import steps, trajectories, time
 import configparser
@@ -125,13 +124,14 @@ def sample_anchor_points(candidate_polylines: np.ndarray, sample_size: int) -> n
     points_per_candidate.append(sample_size - sum(points_per_candidate))
 
     for cp_index, points_to_sample in enumerate(points_per_candidate):
-        polyline_length = candidate_polylines.shape[1]
-        ts = np.linspace(0, polyline_length-1, points_to_sample)
-        for t in ts:
-            start_point_index, end_point_index = int(math.floor(t)), int(math.ceil(t))
-            direction = candidate_polylines[cp_index, end_point_index, :] - candidate_polylines[cp_index, start_point_index, :]
-            t_point = candidate_polylines[cp_index, start_point_index, :] + (t - start_point_index) * direction
-            anchors_samples.append(t_point)
+        xs = candidate_polylines[cp_index, :, 0]
+        ys = candidate_polylines[cp_index, :, 1]
+        curve = np.poly1d(np.polyfit(xs, ys, 3))
+        xs_sampled = np.linspace(xs[0], xs[-1], points_to_sample, endpoint=True)
+        ys_sampled = curve(xs_sampled)
+        sampled_anchors = np.stack([xs_sampled, ys_sampled], axis=-1)
+        for index in range(points_to_sample):
+            anchors_samples.append(sampled_anchors[index])
 
     anchors = np.vstack(anchors_samples)
     while anchors.shape != np.unique(anchors, axis=0).shape:

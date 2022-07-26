@@ -35,6 +35,7 @@ def run(config: configparser.GlobalConfig):
         trajectory_length=config.global_parameters.trajectory_future_window_length,
         polyline_features=14,
         n_targets=train_parameters.n_targets,
+        n_trajectories=train_parameters.n_trajectories,
 
         train_config=train_parameters
     )

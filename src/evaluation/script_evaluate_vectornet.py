@@ -12,9 +12,10 @@ def run(config: configparser.GlobalConfig):
     model = TargetDrivenForecaster.load_from_checkpoint(
         checkpoint_path=os.path.join(config.global_path, config.evaluation.model_path, 'last.ckpt'),
         cluster_size=20,
-        trajectory_length=30,
+        trajectory_length=config.global_parameters.trajectory_future_window_length,
         polyline_features=14,
-        n_targets=6
+        n_trajectories=config.graph.train.parameters.n_trajectories,
+        n_targets=config.graph.train.parameters.n_targets
     )
     loss = LiteTNTLoss()
 
