@@ -51,9 +51,18 @@ def minFDE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.T
 
     Returns: minFDE
     """
-    fde = torch.sqrt((forecasts[:, -1, 0] - ground_truth[-1, 0]) ** 2 + (forecasts[:, -1, 1] - ground_truth[-1, 1]) ** 2)
-    min_fde_index = torch.argmin(fde)
-    return fde[min_fde_index], min_fde_index
+    fde = torch.sqrt((forecasts[..., -1, 0] - ground_truth[..., -1, 0]) ** 2 + (forecasts[..., -1, 1] - ground_truth[..., -1, 1]) ** 2)
+    if len(fde.shape) == 1:
+        # normal
+        min_fde_index = torch.argmin(fde, dim=0)
+        return torch.mean(fde[min_fde_index]), min_fde_index
+    elif len(fde.shape) == 2:
+        # batched
+        min_fde_index = torch.argmin(fde, dim=1)
+        return torch.mean(fde[:, min_fde_index]), min_fde_index
+    else:
+        # invalid
+        raise ValueError(f'Invalid tensor shape: {fde.shape}')
 
 
 def minADE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -67,8 +76,8 @@ def minADE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.T
     Returns: minADE
     """
     _, min_fde_index = minFDE(forecasts, ground_truth)
-    ade = torch.mean(torch.sqrt((forecasts[:, :, 0] - ground_truth[:, 0]) ** 2 + (forecasts[:, :, 1] - ground_truth[:, 1]) ** 2), dim=-1)
-    return ade[min_fde_index], min_fde_index
+    ade = torch.mean(torch.sqrt((forecasts[..., 0] - ground_truth[..., 0]) ** 2 + (forecasts[..., 1] - ground_truth[..., 1]) ** 2), dim=-1)
+    return torch.mean(ade[:, min_fde_index] if len(ade.shape) == 2 else ade[min_fde_index]), min_fde_index
 
 
 def probaMinFDE(forecasts: torch.Tensor, probas: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
