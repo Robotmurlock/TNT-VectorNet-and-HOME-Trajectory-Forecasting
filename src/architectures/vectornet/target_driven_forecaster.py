@@ -6,6 +6,7 @@ from architectures.vectornet.target_generator import TargetGenerator
 from architectures.vectornet.trajectory_forecaster import TrajectoryForecaster, TrajectoryScorer
 from architectures.vectornet.loss import LiteTNTLoss
 from configparser import GraphTrainConfigParameters
+from evaluation import metrics
 
 
 class TargetDrivenForecaster(LightningModule):
@@ -40,7 +41,9 @@ class TargetDrivenForecaster(LightningModule):
             'training_tf_huber_loss': [],
             'training_tf_confidence_loss': [],
             'val_loss': [],
-            'end_to_end_val_loss': []
+            'end_to_end_val_loss': [],
+            'min_ade_val': [],
+            'min_fde_val': []
         }
 
     def _filter_targets(
@@ -150,10 +153,12 @@ class TargetDrivenForecaster(LightningModule):
         self._log_history['training_tf_confidence_loss'].append(tf_bce_loss)
         return loss
 
+    @torch.no_grad()
     def validation_step(self, batch, *args, **kwargs) -> dict:
         polylines, anchors, ground_truth, gt_traj = batch
         outputs = self(polylines, anchors)
 
+        # e2e loss
         e2e_val_loss, _, _, _, _ = self._loss(
             anchors=outputs['all_anchors'],
             offsets=outputs['all_offsets'],
@@ -164,7 +169,14 @@ class TargetDrivenForecaster(LightningModule):
             gt_traj=gt_traj
         )
 
+        # e2e metrics
+        expanded_ground_truth = gt_traj.unsqueeze(1).repeat(1, self._n_trajectories, 1, 1)
+        min_ade, _ = metrics.minADE(outputs['forecasts'], expanded_ground_truth)
+        min_fde, _ = metrics.minFDE(outputs['forecasts'], expanded_ground_truth)
+
         self._log_history['end_to_end_val_loss'].append(e2e_val_loss)
+        self._log_history['min_ade_val'].append(min_ade)
+        self._log_history['min_fde_val'].append(min_fde)
 
         # FIXME: validation is logged into training loss :'(
         loss = self.training_step(batch, *args, **kwargs)
@@ -174,7 +186,6 @@ class TargetDrivenForecaster(LightningModule):
 
     def on_validation_epoch_end(self, *args, **kwargs) -> None:
         for log_name, sample in self._log_history.items():
-
             self.log(log_name, sum(sample) / len(sample), prog_bar=True)
             self._log_history[log_name] = []
 

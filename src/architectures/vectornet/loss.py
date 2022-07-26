@@ -69,12 +69,10 @@ class ForecastingScoringLoss(nn.Module):
     def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
         gt_conf = F.softmax(
-            -torch.sum(
-                torch.sqrt(
-                    torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
-                    + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2)
-                ), dim=-1
-            ), dim=1
+            -torch.max(
+                torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
+                + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2), dim=-1
+            )[0], dim=1
         )
         return self._bce(gt_conf, conf)
 
@@ -100,7 +98,7 @@ class LiteTNTLoss(nn.Module):
         tf_huber_loss = self._tf_loss(forecasts, gt_traj)
         tf_conf_loss = self._tfs_loss(traj_conf, forecasts, gt_traj)
 
-        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss + 0.1*tf_conf_loss
+        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss + 0.0*tf_conf_loss
         return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_conf_loss
 
 
