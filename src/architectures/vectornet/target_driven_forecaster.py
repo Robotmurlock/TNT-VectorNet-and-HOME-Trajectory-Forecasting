@@ -17,18 +17,24 @@ class TargetDrivenForecaster(LightningModule):
         polyline_features: int,
         n_targets: int,
         n_trajectories: int,
+        use_traj_scoring: bool = True,
 
         train_config: Optional[GraphTrainConfigParameters] = None
     ):
         super(TargetDrivenForecaster, self).__init__()
 
         # model and loss
+        if not use_traj_scoring:
+            assert n_targets == n_trajectories, \
+                'Number of targets and trajectories must match if not using trajectory scoring! '
+        assert n_targets >= n_trajectories, 'Number of end point targets must be greater or equal than number of trajectories!'
+
         self._n_targets = n_targets
         self._n_trajectories = n_trajectories
         self._target_generator = TargetGenerator(cluster_size=cluster_size, polyline_features=polyline_features)
         self._trajectory_forecaster = TrajectoryForecaster(n_features=256, trajectory_length=trajectory_length)
         self._trajectory_scorer = TrajectoryScorer(n_features=256, trajectory_length=trajectory_length)
-        self._loss = LiteTNTLoss()
+        self._loss = LiteTNTLoss(traj_scoring=use_traj_scoring)
 
         # training
         self._train_config = train_config

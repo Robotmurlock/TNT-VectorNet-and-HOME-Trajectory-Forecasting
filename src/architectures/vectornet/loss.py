@@ -78,8 +78,9 @@ class ForecastingScoringLoss(nn.Module):
 
 
 class LiteTNTLoss(nn.Module):
-    def __init__(self, targets_delta: float = 0.04, forecasting_delta: float = 0.04):
+    def __init__(self, traj_scoring: bool = True, targets_delta: float = 0.04, forecasting_delta: float = 0.04):
         super(LiteTNTLoss, self).__init__()
+        self._traj_scoring_lambda = 0.2 if traj_scoring else 0.0
         self._tg_loss = TargetsLoss(delta=targets_delta)
         self._tf_loss = ForecastingLoss(delta=forecasting_delta)
         self._tfs_loss = ForecastingScoringLoss()
@@ -98,7 +99,7 @@ class LiteTNTLoss(nn.Module):
         tf_huber_loss = self._tf_loss(forecasts, gt_traj)
         tf_conf_loss = self._tfs_loss(traj_conf, forecasts, gt_traj)
 
-        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss + 0.0*tf_conf_loss
+        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss + self._traj_scoring_lambda*tf_conf_loss
         return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_conf_loss
 
 

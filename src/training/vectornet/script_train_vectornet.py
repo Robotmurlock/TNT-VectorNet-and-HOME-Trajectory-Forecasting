@@ -36,6 +36,7 @@ def run(config: configparser.GlobalConfig):
         polyline_features=14,
         n_targets=train_parameters.n_targets,
         n_trajectories=train_parameters.n_trajectories,
+        use_traj_scoring=train_parameters.use_traj_scoring,
 
         train_config=train_parameters
     )
@@ -49,7 +50,7 @@ def run(config: configparser.GlobalConfig):
         callbacks=[
             ModelCheckpoint(
                 dirpath=model_storage_path,
-                monitor='val_loss',
+                monitor='min_fde_val',
                 save_last=True,
                 save_top_k=1
             )

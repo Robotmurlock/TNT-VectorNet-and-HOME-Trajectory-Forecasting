@@ -30,6 +30,7 @@ class GraphTrainConfigParameters:
     tf_sched_step: int
     tf_sched_gamma: float
     huber_delta: float
+    use_traj_scoring: bool
 
 
 @dataclass

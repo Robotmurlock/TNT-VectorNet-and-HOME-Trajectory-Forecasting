@@ -20,7 +20,7 @@ data_process:
 raster:
   data_process:
     input_path: 'test_data/internal/train'
-    output_path: 'test_data/internal_graph'
+    output_path: 'test_data/internal_raster'
     visualize: True
     debug_visualize: True
     parameters:
@@ -70,6 +70,7 @@ graph:
       tf_sched_step: 50
       tf_sched_gamma: 0.1
       huber_delta: 0.04
+      use_traj_scoring: False
 model:
   name: 'vectornet'
   config_path: 'configs/model_config.yaml'
