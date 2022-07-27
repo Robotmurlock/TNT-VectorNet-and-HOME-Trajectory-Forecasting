@@ -1,14 +1,15 @@
 import os
 from pathlib import Path
 import logging
-from typing import List, Tuple, Optional
-
+from typing import List, Optional
+from tqdm import tqdm
 import cv2
 import numpy as np
 from argoverse.map_representation.map_api import ArgoverseMap
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-from utils import image_processing
+from utils import image_processing, time, steps
 import configparser
 from datasets.data_models import ScenarioData, RectangleBox, RasterScenarioData
 
@@ -281,9 +282,8 @@ class ScenarioRasterPreprocess:
         # state
         self._avm = ArgoverseMap()
         self._city_cache = {}
-        self._fig = None
 
-    def process(self, path: str) -> Tuple[RasterScenarioData, Optional[plt.Figure]]:
+    def process(self, path: str) -> RasterScenarioData:
         scenario = ScenarioData.load(path)
         if scenario.city not in self._city_cache:
             self._city_cache[scenario.city] = self._avm.get_rasterized_driveable_area(scenario.city)
@@ -348,8 +348,33 @@ class ScenarioRasterPreprocess:
             angle=scenario.angle
         )
 
-        if self._config.raster.data_process.visualize and not self._disable_visualization:
-            logger.debug(f'Visualizing data for scenarion "{scenario.dirname}"')
-            self._fig = raster_scenario.visualize(self._fig)
+        return raster_scenario
 
-        return raster_scenario, self._fig
+
+@time.timeit
+def run(config: configparser.GlobalConfig):
+    """
+    Converts vectorized structured data to images
+    Args:
+        config: Config
+    """
+    input_path = os.path.join(config.global_path, config.raster.data_process.input_path)
+    output_path = os.path.join(config.global_path, config.raster.data_process.output_path)
+    scenario_names = os.listdir(input_path)
+
+    preprocessor = ScenarioRasterPreprocess(config)
+
+    fig = None
+    for scenario_name in tqdm(scenario_names):
+        scenario_inpath = os.path.join(input_path, scenario_name)
+        scenario_outpath = os.path.join(output_path, scenario_name)
+        Path(scenario_inpath).mkdir(exist_ok=True, parents=True)
+        Path(scenario_outpath).mkdir(exist_ok=True, parents=True)
+
+        data = preprocessor.process(scenario_inpath)
+        fig = data.visualize_heatmap(fig)
+        fig.savefig(os.path.join(scenario_outpath, 'heatmap.png'))
+
+
+if __name__ == '__main__':
+    run(configparser.config_from_yaml(steps.get_config_path()))

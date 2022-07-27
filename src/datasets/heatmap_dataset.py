@@ -24,7 +24,7 @@ RasterScenarioData
         return [os.path.join(path, filename) for filename in os.listdir(path)]
 
     def __getitem__(self, index: int) -> RasterScenarioData:
-        raster_scenario_data, _ = self._preprocessor.process(self._scenario_paths[index])
+        raster_scenario_data = self._preprocessor.process(self._scenario_paths[index])
         return raster_scenario_data
 
     def __len__(self) -> int:

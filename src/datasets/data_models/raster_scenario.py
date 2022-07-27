@@ -38,7 +38,7 @@ class RasterScenarioData:
 
     @property
     def window_size(self) -> int:
-        return self.raster_features.shape[0]
+        return self.raster_features.shape[1]
 
     def save(self, path: str) -> None:
         """
@@ -86,6 +86,21 @@ class RasterScenarioData:
 
         return cls(**catalog)
 
+    def traj_to_raster(self, traj: np.ndarray) -> np.ndarray:
+        """
+        Transforms trajectory to raster coordinate system by rotating it to moving it to image coordinate system
+
+        Args:
+            traj: Trajectory
+
+        Returns: Transformed trajectory
+        """
+        traj_copy = traj.copy()
+        traj_copy = trajectories.rotate_points(traj_copy, self.angle)
+        traj_copy[:, 0] += self.window_size // 2
+        traj_copy[:, 1] += self.window_size // 2
+        return traj_copy
+
     def visualize_heatmap(
         self,
         fig: Optional[plt.Figure] = None
@@ -114,10 +129,6 @@ class RasterScenarioData:
         for i in range(3):
             image[:, :, i] = 0.5*self.raster_features[0]
 
-        # plot agent and other objects
-        image[:, :, 1] = np.maximum(image[:, :, 1], self.raster_features[1])
-        image[:, :, 0] = np.maximum(image[:, :, 0], 0.7*self.raster_features[2])
-
         # plot ground truth (heatmap)
         for i in range(3):
             image[:, :, i] = np.maximum(image[:, :, i], self.heatmap)
@@ -125,8 +136,14 @@ class RasterScenarioData:
         # Show image
         plt.imshow(image, origin='lower', cmap='YlOrRd')
 
+        # plot agent trajectory
+        agent_traj_hist = self.traj_to_raster(self.agent_traj_hist)
+        agent_traj_gt = self.traj_to_raster(self.agent_traj_gt)
+        plt.plot(agent_traj_hist[:, 0], agent_traj_hist[:, 1], '--', color='blue', linewidth=7)
+        plt.plot(agent_traj_gt[:, 0], agent_traj_gt[:, 1], '--', color='green', linewidth=7)
+
         # set title and axis info
-        plt.title(f'Rasterized Scenario {self.id}')
+        plt.title(f'Heatmap {self.id}')
         plt.xlabel('X')
         plt.ylabel('Y')
 
