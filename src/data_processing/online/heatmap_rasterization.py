@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 import logging
 from typing import List, Optional
 from tqdm import tqdm
@@ -12,39 +11,55 @@ from pathlib import Path
 from utils import image_processing, time, steps
 import configparser
 from datasets.data_models import ScenarioData, RectangleBox, RasterScenarioData
+import conventions
 
 
 logger = logging.getLogger('DataRasterization')
 
 
-def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox) -> np.ndarray:
+def rotate_image(image, angle, center=None, scale=1.0):
+    (h, w) = image.shape[:2]
+
+    if center is None:
+        center = (w / 2, h / 2)
+
+    M = cv2.getRotationMatrix2D(center, angle, scale)
+    rotated = cv2.warpAffine(image, M, (w, h))
+    return rotated
+
+
+def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: float) -> np.ndarray:
     """
     Pads driveable area by view
 
     Args:
         da_map: Driveable Area Map
         view: Agent View
+        angle: Scene rotation angle
 
     Returns: Padded Agent driveable area (by view)
     """
     # TODO: fix left-up, right-bottom mix
-    da_raster = da_map[np.newaxis, view.left:view.right, view.up:view.bottom].copy()
+    da_raster = da_map[view.left:view.right, view.up:view.bottom].copy()
     padsize_up = max(-view.left, 0)
     if padsize_up > 0:
-        pad_up = np.zeros(shape=(1, padsize_up, da_raster.shape[2]))
+        pad_up = np.zeros(shape=(padsize_up, da_raster.shape[2]))
         da_raster = np.concatenate([pad_up, da_raster], axis=1)
     padsize_down = max(view.right-da_map.shape[0], 0)
     if padsize_down > 0:
-        pad_down = np.zeros(shape=(1, padsize_down, da_raster.shape[2]))
+        pad_down = np.zeros(shape=(padsize_down, da_raster.shape[2]))
         da_raster = np.concatenate([da_raster, pad_down], axis=1)
     padsize_left = max(-view.up, 0)
     if padsize_left > 0:
-        pad_left = np.zeros(shape=(1, da_raster.shape[1], padsize_left))
+        pad_left = np.zeros(shape=(da_raster.shape[1], padsize_left))
         da_raster = np.concatenate([pad_left, da_raster], axis=2)
     padsize_right = max(view.bottom-da_map.shape[1], 0)
     if padsize_right > 0:
-        pad_right = np.zeros(shape=(1, da_raster.shape[1], padsize_right))
+        pad_right = np.zeros(shape=(da_raster.shape[1], padsize_right))
         da_raster = np.concatenate([da_raster, pad_right], axis=2)
+
+    da_raster = rotate_image(da_raster, -(180 / np.pi) * angle)
+    da_raster = da_raster.reshape(1, *da_raster.shape)
     return da_raster
 
 
@@ -148,7 +163,7 @@ def rasterize_lanes(lane_features: np.ndarray, view: RectangleBox, centerline_po
 
     Returns: Rasterized lane centerlines
     """
-    rasterized_lanes = np.zeros(shape=(lane_features.shape[2]-1, view.height, view.width))
+    rasterized_lanes = np.zeros(shape=(lane_features.shape[2]-2, view.height, view.width))
     clp_halfheight, clp_halfwidth = centerline_point_shape[0] // 2, centerline_point_shape[1] // 2
     v_halfheight, v_halfwidth = view.height // 2, view.width // 2
 
@@ -164,9 +179,9 @@ def rasterize_lanes(lane_features: np.ndarray, view: RectangleBox, centerline_po
             left, right = v_halfwidth + y - clp_halfheight, v_halfwidth + y + clp_halfwidth
             rasterized_lanes[0, up:bottom, left:right] = 1
             for feat_index in range(2, lane_features.shape[2]):
-                rasterized_lanes[feat_index-1, up:bottom, left:right] = features[feat_index]
+                rasterized_lanes[feat_index-2, up:bottom, left:right] = features[feat_index]
 
-    expected_shape = (lane_features.shape[2]-1, view.height, view.width)
+    expected_shape = (lane_features.shape[2]-2, view.height, view.width)
     assert expected_shape == rasterized_lanes.shape, \
         f'Wrong shape: Expected {expected_shape} but found {rasterized_lanes.shape}'
 
@@ -251,9 +266,8 @@ def create_heatmap(
 
     # Apply gaussian kernel
     gaussian_filter = image_processing.create_gauss_kernel(kernel_size, sigma=sigma)
-    kernel_halfsize = kernel_size // 2
-    gaussian_filter = gaussian_filter * (1 / gaussian_filter[kernel_halfsize, kernel_halfsize])
     heatmap = cv2.filter2D(heatmap, -1, gaussian_filter)
+    heatmap[x_center, y_center] = 1.0
 
     heatmap = heatmap * driveable_area[0]  # Set probability to 0 on in non-driveable area
 
@@ -300,7 +314,7 @@ class ScenarioRasterPreprocess:
         )
         view_normalized = view.move(-c_y, -c_x)
 
-        da_raster = form_driveable_area_raster(da_map=self._city_cache[scenario.city][0], view=view)  # driveable area
+        da_raster = form_driveable_area_raster(da_map=self._city_cache[scenario.city][0], view=view, angle=scenario.angle)
 
         agent_trajectory_raster = rasterize_agent_trajectory(
             agent_traj_hist=scenario.agent_traj_hist,
@@ -358,22 +372,26 @@ def run(config: configparser.GlobalConfig):
     Args:
         config: Config
     """
-    input_path = os.path.join(config.global_path, config.raster.data_process.input_path)
-    output_path = os.path.join(config.global_path, config.raster.data_process.output_path)
-    scenario_names = os.listdir(input_path)
+    for split in conventions.SPLIT_NAMES:
+        input_path = os.path.join(config.global_path, config.raster.data_process.input_path, split)
+        output_path = os.path.join(config.global_path, config.raster.data_process.output_path, split)
+        scenario_names = os.listdir(input_path)
 
-    preprocessor = ScenarioRasterPreprocess(config)
+        preprocessor = ScenarioRasterPreprocess(config)
 
-    fig = None
-    for scenario_name in tqdm(scenario_names):
-        scenario_inpath = os.path.join(input_path, scenario_name)
-        scenario_outpath = os.path.join(output_path, scenario_name)
-        Path(scenario_inpath).mkdir(exist_ok=True, parents=True)
-        Path(scenario_outpath).mkdir(exist_ok=True, parents=True)
+        fig = None
+        for scenario_name in tqdm(scenario_names):
+            scenario_inpath = os.path.join(input_path, scenario_name)
+            scenario_outpath = os.path.join(output_path, scenario_name)
+            Path(scenario_inpath).mkdir(exist_ok=True, parents=True)
+            Path(scenario_outpath).mkdir(exist_ok=True, parents=True)
 
-        data = preprocessor.process(scenario_inpath)
-        fig = data.visualize_heatmap(fig)
-        fig.savefig(os.path.join(scenario_outpath, 'heatmap.png'))
+            data = preprocessor.process(scenario_inpath)
+            fig = data.visualize_heatmap(fig)
+            fig.savefig(os.path.join(scenario_outpath, 'heatmap.png'))
+
+            fig = data.visualize_raster(fig)
+            fig.savefig(os.path.join(scenario_outpath, 'raster.png'))
 
 
 if __name__ == '__main__':

@@ -43,9 +43,9 @@ class ScenarioDatasetTorchWrapper(Dataset):
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         scenario_data = self.dataset[index]
-        agent_hist = torch.tensor(scenario_data.agent_traj_hist, dtype=torch.float32)
-        agent_future = scenario_data.ground_truth_trajectory_difference
-        agent_gt_end_point = scenario_data.final_point_gt.view(1, 2)  # n_end_points, xy
+        agent_hist = torch.tensor(scenario_data.agent_traj_hist, dtype=torch.float32) / 25.0
+        agent_future = scenario_data.ground_truth_trajectory_difference / 25.0
+        agent_gt_end_point = scenario_data.final_point_gt.view(1, 2) / 25.0  # n_end_points, xy
         return agent_hist, agent_future, agent_gt_end_point
 
     def __len__(self) -> int:
