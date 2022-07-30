@@ -8,39 +8,47 @@ from configparser.raster import RasterizationTrainTrajectoryForecasterParameters
 
 
 class TrajectoryForecaster(nn.Module):
-    def __init__(self, in_features: int, trajectory_future_length: int):
+    def __init__(self, in_features: int, trajectory_hist_length: int, trajectory_future_length: int):
         super(TrajectoryForecaster, self).__init__()
 
         # RNN
-        self._rnn = nn.LSTM(input_size=in_features, hidden_size=128, proj_size=64)
-        self._hidden = None
-        self._layernom = nn.LayerNorm(64)
-        self._relu = nn.ReLU()
+        self._encoder = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features*trajectory_hist_length, 64),
+            nn.LayerNorm(64),
+            nn.ReLU()
+        )
 
         self._decoder = nn.Sequential(
             nn.Linear(66, 128),
             nn.LayerNorm(128),
-            nn.ReLU(),
-            nn.Linear(128, trajectory_future_length*2),
+            nn.ReLU()
+        )
+
+        self._forecaster = nn.Sequential(
+            nn.Linear(128+2, trajectory_future_length * 2)
         )
 
     def forward(self, traj_hist: torch.Tensor, end_point: torch.Tensor) -> torch.Tensor:
-        encoded, self._hidden = self._rnn(traj_hist, self._hidden) if self._hidden is not None else self._rnn(traj_hist)
-        self._hidden[0].detach_()
-        self._hidden[1].detach_()
-
-        encoded = encoded[:, -1, :]  # Obtaining last output (format: TxBxF)
+        encoded = self._encoder(traj_hist)
         encoded_expanded = encoded.unsqueeze(1).repeat(1, end_point.shape[1], 1)
         encoded_with_end_point = torch.concat([encoded_expanded, end_point], dim=-1)
-        output = self._decoder(encoded_with_end_point)
+        decoded = self._decoder(encoded_with_end_point)
+        decoded_with_end_point = torch.concat([decoded, end_point], dim=-1)
+        output = self._forecaster(decoded_with_end_point)
         output = output.view(*output.shape[:2], -1, 2)
         return output
 
 
 class LightningTrajectoryForecaster(LightningModule):
-    def __init__(self, train_config: RasterizationTrainTrajectoryForecasterParametersConfig, in_features: int, trajectory_future_length: int):
+    def __init__(self, train_config: RasterizationTrainTrajectoryForecasterParametersConfig,
+                 in_features: int, trajectory_hist_length: int, trajectory_future_length: int):
         super(LightningTrajectoryForecaster, self).__init__()
-        self._model = TrajectoryForecaster(in_features, trajectory_future_length)
+        self._model = TrajectoryForecaster(
+            in_features=in_features,
+            trajectory_hist_length=trajectory_hist_length,
+            trajectory_future_length=trajectory_future_length
+        )
         self._train_config = train_config
 
         self._log_history = {
@@ -53,14 +61,14 @@ class LightningTrajectoryForecaster(LightningModule):
 
     def training_step(self, batch, *args, **kwargs) -> torch.Tensor:
         traj, gt_traj, end_point = batch
-        outputs = self._model(traj, end_point)
+        outputs = self._model(traj, end_point).squeeze(1)
         loss = F.mse_loss(outputs, gt_traj)
         self._log_history['training_loss'].append(loss)
         return loss
 
     def validation_step(self, batch, *args, **kwargs) -> torch.Tensor:
         traj, gt_traj, end_point = batch
-        outputs = self._model(traj, end_point)
+        outputs = self._model(traj, end_point).squeeze(1)
         loss = F.mse_loss(outputs, gt_traj)
         self._log_history['val_loss'].append(loss)
         return loss
@@ -90,7 +98,7 @@ class LightningTrajectoryForecaster(LightningModule):
 
 
 def test():
-    model = TrajectoryForecaster(in_features=3, trajectory_future_length=20)
+    model = TrajectoryForecaster(in_features=3, trajectory_hist_length=30, trajectory_future_length=20)
     inputs, end_point = torch.randn(8, 30, 3), torch.randn(8, 6, 2)
     outputs = model(inputs, end_point)
     print(outputs.shape)

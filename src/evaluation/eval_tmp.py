@@ -54,18 +54,20 @@ def evaluate(
 
             # forecasting
             raster, agent_traj_hist, heatmap_gt, da_area = torch.tensor(data.raster_features, dtype=torch.float32).to(device).unsqueeze(0), \
-                torch.tensor(data.agent_traj_hist, dtype=torch.float32).to(device).unsqueeze(0), \
+                torch.tensor(data.agent_traj_hist, dtype=torch.float32).to(device).unsqueeze(0) / 25.0, \
                 torch.tensor(data.heatmap, dtype=torch.float32).to(device).unsqueeze(0), \
-                torch.tensor(data.raster_features[-1, ...], dtype=torch.float32).to(device)
+                torch.tensor(data.raster_features[0, ...], dtype=torch.float32).to(device)
 
             outputs = model(raster, agent_traj_hist, da_area)
 
-            forecasts, targets = outputs['forecasts'][0].detach().cpu(), outputs['targets'][0].detach().cpu().numpy()
-            forecasts = forecasts.cumsum(dim=1)
-            gt_traj = torch.tensor(data.agent_traj_gt, dtype=torch.float32).cumsum(dim=0)  # transform differences to trajectory
-            forecasts_scaled = forecasts * 1
-            gt_traj_scaled = gt_traj * 1
+            forecasts, targets, heatmap = outputs['forecasts'][0].detach().cpu(), outputs['targets'][0].detach().cpu().numpy(), \
+                outputs['heatmap'][0][0].detach().cpu().numpy()
 
+            forecasts = forecasts.cumsum(dim=1)
+            gt_traj = torch.tensor(data.agent_traj_gt, dtype=torch.float32)  # transform differences to trajectory
+            forecasts_scaled = forecasts * 25.0
+            gt_traj_scaled = gt_traj
+            
             # Agent evaluation
             agent_min_ade, _ = metrics.minADE(forecasts_scaled, gt_traj_scaled)
             agent_min_fde, _ = metrics.minFDE(forecasts_scaled, gt_traj_scaled)
@@ -94,9 +96,21 @@ def evaluate(
                     fig=fig,
                     targets=targets,
                     agent_forecast=forecasts_scaled.numpy(),
-                    heatmap=outputs['heatmap'][0][0].detach().cpu().numpy()
+                    heatmap=heatmap,
                 )
                 fig.savefig(os.path.join(scenario_output_path, 'scenario.png'))
+
+                fig = data.visualize_heatmap(targets=targets, fig=fig)
+                fig.savefig(os.path.join(scenario_output_path, 'heatmap_targets.png'))
+
+                fig = data.visualize(
+                    fig=fig,
+                    targets=targets,
+                    agent_forecast=forecasts_scaled.numpy(),
+                    heatmap=heatmap,
+                    map_radius=32
+                )
+                fig.savefig(os.path.join(scenario_output_path, 'scenario_zoomed.png'))
 
         dataset_metrics = {
             'agent-mean-minADE': total_agent_min_ade / n_scenarios,

@@ -36,7 +36,7 @@ class HeatmapTrajectoryForecaster(nn.Module):
     def forward(self, raster: torch.Tensor, agent_traj_hist: torch.Tensor, da_area: torch.Tensor) -> Dict[str, torch.Tensor]:
         heatmap = self._heatmap_estimator(raster, agent_traj_hist) * da_area
         targets = self._target_sampler(heatmap)
-        forecasts = self._forecaster(agent_traj_hist, targets)
+        forecasts = self._forecaster(agent_traj_hist, (targets - 112) / 25.0)
         return {
             'forecasts': forecasts,
             'targets': targets,
@@ -53,6 +53,7 @@ class HeatmapTrajectoryForecaster(nn.Module):
             traj_length=self._traj_length,
             train_config=None,
             in_features=3,
+            trajectory_hist_length=20,
             trajectory_future_length=30
         )
 

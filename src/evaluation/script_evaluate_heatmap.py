@@ -12,7 +12,7 @@ from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDataset
 
 def run(config: configparser.GlobalConfig):
     model = HeatmapTrajectoryForecaster(
-        encoder_input_shape=(10, 224, 224),
+        encoder_input_shape=(9, 224, 224),
         decoder_input_shape=(512, 14, 14),
         traj_features=3,
         traj_length=config.global_parameters.trajectory_history_window_length,
@@ -27,9 +27,9 @@ def run(config: configparser.GlobalConfig):
     )
     model.eval()
 
-    outputs_path = os.path.join(config.global_path, 'tmp/result')
+    outputs_path = os.path.join(config.global_path, 'test_data/raster_result')
     for split_name in conventions.SPLIT_NAMES:
-        dataset_heatmap = HeatmapOutputRasterScenarioDataset(config)
+        dataset_heatmap = HeatmapOutputRasterScenarioDataset(config, split=split_name)
         eval_tmp.evaluate(
             model=model,
             loss=PixelFocalLoss(),
