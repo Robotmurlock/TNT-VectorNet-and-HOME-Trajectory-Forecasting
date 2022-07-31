@@ -15,7 +15,8 @@ def run(config: configparser.GlobalConfig):
         trajectory_length=config.global_parameters.trajectory_future_window_length,
         polyline_features=14,
         n_trajectories=config.graph.train.parameters.n_trajectories,
-        n_targets=config.graph.train.parameters.n_targets
+        n_targets=config.graph.train.parameters.n_targets,
+        use_traj_scoring=config.graph.train.parameters.use_traj_scoring,
     )
     loss = LiteTNTLoss()
 

@@ -64,17 +64,22 @@ class ForecastingLoss(nn.Module):
 class ForecastingScoringLoss(nn.Module):
     def __init__(self):
         super(ForecastingScoringLoss, self).__init__()
-        self._bce = nn.BCELoss(reduction='sum')
+        self._bce = nn.BCELoss(reduction='none')
 
     def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
-        gt_conf = F.softmax(
-            -torch.max(
-                torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
-                + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2), dim=-1
-            )[0], dim=1
-        )
-        return self._bce(gt_conf, conf)
+        distances = torch.max(
+            torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
+            + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2), dim=-1
+        )[0]
+        closest_target_index = torch.argmin(distances, dim=-1)
+        closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
+
+        # confidence loss
+        # ideally the closest target should have confidence 1 and all others should have 0
+        ce_loss = self._bce(F.softmax(conf, dim=-1), closest_target_index_onehot)
+        ce_loss = ce_loss.sum()
+        return ce_loss
 
 
 class LiteTNTLoss(nn.Module):
@@ -104,6 +109,8 @@ class LiteTNTLoss(nn.Module):
 
 
 def main():
+    torch.set_printoptions(precision=2, sci_mode=False)
+
     # Test targets loss
     t_criteria = TargetsLoss()
     anchors = torch.tensor([
@@ -149,7 +156,7 @@ def main():
         [[0, 0], [2, 2], [4, 4]],
     ], dtype=torch.float32)
     confs = torch.tensor([
-        [1, 0], [0.6, 0.4]
+        [999, -999], [999, -999]
     ], dtype=torch.float32)
 
     print(fs_criteria(confs, forecasts, ground_truth))
