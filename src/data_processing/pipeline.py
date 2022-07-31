@@ -12,7 +12,7 @@ class Pipeline(ABC):
     """
     Data processing pipeline abstraction
     """
-    def __init__(self, output_path: str, visualize: bool = False):
+    def __init__(self, output_path: str, visualize: bool = False, report: bool = False):
         """
 
         Args:
@@ -24,6 +24,15 @@ class Pipeline(ABC):
         # visualization support
         self._fig = None
         self.viz = visualize
+
+        self._report = report
+
+    @property
+    def has_report(self) -> bool:
+        """
+        Returns: report status
+        """
+        return self._report
 
     @abstractmethod
     def process(self, data: Any) -> Any:
@@ -46,6 +55,14 @@ class Pipeline(ABC):
             data: Data to be saved
         """
         pass
+
+    def report(self) -> None:
+        """
+        Shows pipeline report (optional)
+
+        Returns:
+        """
+        raise NotImplemented('Report is not implemented')
 
     def visualize(self, data: Any) -> None:
         """
@@ -84,10 +101,12 @@ def run_pipeline(pipeline: Pipeline, data_iterator: Collection, n_processes: int
         logger.warning('Process is run sequentually because only one process is being used!')
         for data in data_iterator:
             pipeline.process_and_save(data)
-        return
+    else:
+        assert not pipeline.viz, f'Data visualization is supported for only one process. Got {n_processes}.'
 
-    assert not pipeline.viz, f'Data visualization is supported for only one process. Got {n_processes}.'
+        with Pool(processes=n_processes) as pool:
+            for _ in tqdm(pool.imap(pipeline.process_and_save, data_iterator), total=len(data_iterator)):
+                pass
 
-    with Pool(processes=n_processes) as pool:
-        for _ in tqdm(pool.imap(pipeline.process_and_save, data_iterator), total=len(data_iterator)):
-            pass
+    if pipeline.has_report:
+        pipeline.report()

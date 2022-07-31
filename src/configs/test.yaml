@@ -50,8 +50,11 @@ graph:
     max_polyline_segments: 20
     max_polylines: 300
     normalization_parameter: 25.0
+    sampling_algorithm: 'polyline'
     visualize: True
     visualize_anchors: True
+    visualize_candidate_centerlines: True
+    report: True
   train:
     train_input_path: 'test_data/internal_graph/train'
     val_input_path: 'test_data/internal_graph/val'

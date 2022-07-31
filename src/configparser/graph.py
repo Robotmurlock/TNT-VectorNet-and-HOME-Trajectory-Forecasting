@@ -1,7 +1,7 @@
 """
 VectorNet config dataclass
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List
 
 
@@ -12,9 +12,13 @@ class DataProcessGraphConfig:
     max_polyline_segments: int
     max_polylines: int
     normalization_parameter: float
+    sampling_algorithm: str
     visualize: bool
-    visualize_anchors: bool
-    skip: Optional[List[str]]
+    report: bool
+
+    skip: Optional[List[str]] = field(default=None)
+    visualize_anchors: bool = field(default=False)
+    visualize_candidate_centerlines: bool = field(default=False)
 
 
 @dataclass
