@@ -29,6 +29,7 @@ class TargetDrivenForecaster(LightningModule):
                 'Number of targets and trajectories must match if not using trajectory scoring! '
         assert n_targets >= n_trajectories, 'Number of end point targets must be greater or equal than number of trajectories!'
 
+        self._use_traj_scoring = use_traj_scoring
         self._n_targets = n_targets
         self._n_trajectories = n_trajectories
         self._target_generator = TargetGenerator(cluster_size=cluster_size, polyline_features=polyline_features)
@@ -100,19 +101,23 @@ class TargetDrivenForecaster(LightningModule):
         trajectories = self._trajectory_forecaster(features, filtered_targets)
         trajectory_scores = self._trajectory_scorer(features, trajectories)
 
-        # Filter by trajectory scores
-        batch_filtered_trajectories, batch_filtered_traj_scores = [], []
-        for batch_index in range(n_batches):
-            # for each instance in batch: choose top N trajectories
-            instance_filter_indexes = torch.argsort(trajectory_scores[batch_index], descending=True)[:self._n_trajectories]
-            instance_filtered_trajectories = trajectories[batch_index, instance_filter_indexes]
-            instance_filtered_scores = trajectory_scores[batch_index, instance_filter_indexes]
+        if self._use_traj_scoring:
+            # Filter by trajectory scores
+            batch_filtered_trajectories, batch_filtered_traj_scores = [], []
+            for batch_index in range(n_batches):
+                # for each instance in batch: choose top N trajectories
+                instance_filter_indexes = torch.argsort(trajectory_scores[batch_index], descending=True)[:self._n_trajectories]
+                instance_filtered_trajectories = trajectories[batch_index, instance_filter_indexes]
+                instance_filtered_scores = trajectory_scores[batch_index, instance_filter_indexes]
 
-            batch_filtered_trajectories.append(instance_filtered_trajectories)
-            batch_filtered_traj_scores.append(instance_filtered_scores)
+                batch_filtered_trajectories.append(instance_filtered_trajectories)
+                batch_filtered_traj_scores.append(instance_filtered_scores)
 
-        filtered_trajectories = torch.stack(batch_filtered_trajectories)
-        filtered_traj_scores = torch.stack(batch_filtered_traj_scores)
+            filtered_trajectories = torch.stack(batch_filtered_trajectories)
+            filtered_traj_scores = torch.stack(batch_filtered_traj_scores)
+        else:
+            filtered_trajectories = trajectories
+            filtered_traj_scores = None
 
         return {
             'all_anchors': anchors,

@@ -63,7 +63,7 @@ graph:
     n_workers: 8
     parameters:
       epochs: 60
-      n_targets: 6
+      n_targets: 12
       n_trajectories: 6
       batch_size: 8
       tg_lr: 0.01
@@ -73,7 +73,7 @@ graph:
       tf_sched_step: 50
       tf_sched_gamma: 0.1
       huber_delta: 0.04
-      use_traj_scoring: False
+      use_traj_scoring: True
 model:
   name: 'vectornet'
   config_path: 'configs/model_config.yaml'

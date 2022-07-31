@@ -76,7 +76,6 @@ def evaluate(
             gt_traj = gt_traj[0].cumsum(axis=0)  # transform differences to trajectory
             forecasts_scaled = forecasts * scale
             gt_traj_scaled = gt_traj * scale
-            # all_forecasts = all_forecasts * scale
 
             # Agent evaluation
             agent_min_ade, _ = metrics.minADE(forecasts_scaled, gt_traj_scaled)
