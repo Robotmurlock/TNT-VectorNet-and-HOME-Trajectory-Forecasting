@@ -118,6 +118,7 @@ class GraphScenarioData:
             chosen_anchors: Chosen target anchors
             targets_prediction: Targets prediction
             agent_traj_forecast: Forecast trajectories
+            all_agent_traj_forecast:
             scale: Scale map
 
         Returns: Figure
@@ -130,6 +131,13 @@ class GraphScenarioData:
         # Plot polylines
         sorted_polylines = sorted(self.polylines, key=lambda x: ObjectType.from_one_hot(x[0, 4:]).value, reverse=True)
         sorted_polylines = [p * scale for p in sorted_polylines] if scale is not None else sorted_polylines
+        polyline_zorder = {
+            ObjectType.AGENT.value: 9,
+            ObjectType.NEIGHBOUR.value: 8,
+            ObjectType.CANDIDATE_CENTERLINE.value: 7,
+            ObjectType.CENTERLINE.value: 6
+        }
+
         for polyline in sorted_polylines:
             for point in polyline:
                 object_type = ObjectType.from_one_hot(point[4:])
@@ -137,7 +145,7 @@ class GraphScenarioData:
                     continue
                 plt.arrow(x=point[0], y=point[1], dx=point[2], dy=point[3],
                           color=object_type.color, label=object_type.label, length_includes_head=True,
-                          head_width=0.02, head_length=0.02, zorder=5)
+                          head_width=0.02, head_length=0.02, zorder=polyline_zorder[object_type.value])
 
         for atf, color, zorder in [(all_agent_traj_forecast, 'lightgray', 10), (agent_traj_forecast, 'lime', 11)]:
             if atf is not None:

@@ -3,6 +3,8 @@ import logging
 import numpy as np
 from typing import List
 import random
+from multiprocessing import Value
+import math
 
 from utils import steps, trajectories, time
 import configparser
@@ -106,16 +108,19 @@ def create_lane_polylines(lane_features: np.ndarray, max_segments: int) -> List[
             for object_index in range(lane_features.shape[0])]
 
 
-def sample_anchor_points(candidate_polylines: np.ndarray, sample_size: int) -> np.ndarray:
+def sample_anchor_points(candidate_polylines: List[np.ndarray], sample_size: int, sampling_algorithm: str = 'polyline') -> np.ndarray:
     """
     Sample anchor points from lane points values and agent points values (positions)
 
     Args:
         candidate_polylines: Candidate Polylines
         sample_size: Number of points to be sampled
+        sampling_algorithm: Sampling algorithm (TODO: enum)
 
     Returns: Anchors (targets)
     """
+    assert sampling_algorithm in ['polyline', 'curve'], 'Unkown algorithm. Available: "polyline" and "curve"'
+
     anchors_samples = []
     candidate_polylines = np.unique(candidate_polylines, axis=0)
 
@@ -124,14 +129,26 @@ def sample_anchor_points(candidate_polylines: np.ndarray, sample_size: int) -> n
     points_per_candidate.append(sample_size - sum(points_per_candidate))
 
     for cp_index, points_to_sample in enumerate(points_per_candidate):
-        xs = candidate_polylines[cp_index, :, 0]
-        ys = candidate_polylines[cp_index, :, 1]
-        curve = np.poly1d(np.polyfit(xs, ys, 3))
-        xs_sampled = np.linspace(xs[0], xs[-1], points_to_sample, endpoint=True)
-        ys_sampled = curve(xs_sampled)
-        sampled_anchors = np.stack([xs_sampled, ys_sampled], axis=-1)
-        for index in range(points_to_sample):
-            anchors_samples.append(sampled_anchors[index])
+        cp = candidate_polylines[cp_index]
+        if sampling_algorithm == 'polyline':
+            polyline_length = cp.shape[0]
+            ts = np.linspace(0, polyline_length - 1, points_to_sample)
+            for t in ts:
+                start_point_index, end_point_index = int(math.floor(t)), int(math.ceil(t))
+                direction = cp[end_point_index, :] - cp[start_point_index, :]
+                t_point = cp[start_point_index, :] + (t - start_point_index) * direction
+                anchors_samples.append(t_point)
+        elif sampling_algorithm == 'curve':
+            xs = cp[:, 0]
+            ys = cp[:, 1]
+            curve = np.poly1d(np.polyfit(xs, ys, 3))
+            xs_sampled = np.linspace(xs[0], xs[-1], points_to_sample, endpoint=True)
+            ys_sampled = curve(xs_sampled)
+            sampled_anchors = np.stack([xs_sampled, ys_sampled], axis=-1)
+            for index in range(points_to_sample):
+                anchors_samples.append(sampled_anchors[index])
+        else:
+            assert False, 'Invalid Program State!'
 
     anchors = np.vstack(anchors_samples)
     while anchors.shape != np.unique(anchors, axis=0).shape:
@@ -175,12 +192,18 @@ class GraphPipeline(pipeline.Pipeline):
         self,
         output_path: str,
         config: configparser.GlobalConfig,
-        visualize: bool = False
+        visualize: bool = False,
+        report=True
     ):
-        super().__init__(output_path=output_path, visualize=visualize)
+        super().__init__(output_path=output_path, visualize=visualize, report=report)
         self._config = config
         self._dpg_config = config.graph.data_process
         self._test = 0
+
+        # anchor sampling QA
+        self._n_instances = Value('i', 0)
+        self._n_bad_anchors = Value('i', 0)
+        self._n_very_bad_anchors = Value('i', 0)
 
     def process(self, data: str) -> GraphScenarioData:
         scenario = ScenarioData.load(data)
@@ -206,15 +229,13 @@ class GraphPipeline(pipeline.Pipeline):
 
         polylines = [agent_polyline] + neighbor_polylines + lane_polylines + candidate_polylines
 
-        # Pad all polylines to dimension (20, 9) where last dimension is mask
+        # create anchors
+        candidate_polylines_points = [cp[:, :2] for cp in candidate_polylines]
+        anchors = sample_anchor_points(candidate_polylines_points, sample_size=50, sampling_algorithm=self._dpg_config.sampling_algorithm)
+
+        # Pad all polylines to dimension (20, 9) where last dimension is mask TODO
         polylines = [trajectories.pad_trajectory(p, self._dpg_config.max_polyline_segments, trajectories.PadType.PAST)[0]
                      for p in polylines]
-
-        # create anchors
-        candidate_polylines = [trajectories.pad_trajectory(cp, length=20, pad_type=trajectories.PadType.PAST)[0]
-                               for cp in candidate_polylines]
-        candidate_polylines_points = np.stack(candidate_polylines)[:, :, :2].copy()
-        anchors = sample_anchor_points(candidate_polylines_points, sample_size=50)
 
         # filter polylines
         polylines = polylines[:self._dpg_config.max_polylines]
@@ -235,9 +256,14 @@ class GraphPipeline(pipeline.Pipeline):
                                                                       sigma=self._dpg_config.normalization_parameter)
         anchors = trajectories.normalize_polyline(anchors, last_index=2, sigma=self._dpg_config.normalization_parameter)
 
-        # Anchor quality analysis
+        # Anchor QA
         anchor_error = anchor_min_error(anchors, agent_traj_gt_normalized[-1, :])
         logger.debug(f'[{scenario.dirname}]: Closest anchor distance is: {anchor_error:.2f}')
+        self._n_instances.value += 1
+        if anchor_error >= 0.2:
+            self._n_bad_anchors.value += 1
+            if anchor_error >= 0.5:
+                self._n_very_bad_anchors.value += 1
 
         graph_scenario = GraphScenarioData(
             id=scenario.id,
@@ -256,9 +282,18 @@ class GraphPipeline(pipeline.Pipeline):
         data.save(self._output_path)
 
     def visualize(self, data: GraphScenarioData) -> None:
-        self._fig = data.visualize(self._fig, visualize_anchors=self._config.graph.data_process.visualize_anchors)
+        self._fig = data.visualize(
+            fig=self._fig,
+            visualize_anchors=self._config.graph.data_process.visualize_anchors,
+            visualize_candidate_centerlines=self._config.graph.data_process.visualize_candidate_centerlines
+        )
         fig_path = os.path.join(self._output_path, data.dirname, 'polylines.png')
         self._fig.savefig(fig_path)
+
+    def report(self) -> None:
+        logger.info(f'Dataset size: {self._n_instances.value}')
+        logger.info(f'Percentage of samples with bad anchor samplings: {100*self._n_bad_anchors.value / self._n_instances.value:.2f}%')
+        logger.info(f'Percentage of samples with very bad anchor samplings: {100*self._n_very_bad_anchors.value / self._n_instances.value:.2f}%')
 
 
 @time.timeit
@@ -291,7 +326,8 @@ def run(config: configparser.GlobalConfig):
         graph_pipeline = GraphPipeline(
             output_path=output_path,
             config=config,
-            visualize=dpg_config.visualize
+            visualize=dpg_config.visualize,
+            report=dpg_config.report
         )
         pipeline.run_pipeline(pipeline=graph_pipeline, data_iterator=scenario_paths, n_processes=config.data_process.n_processes)
 
