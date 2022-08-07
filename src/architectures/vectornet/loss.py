@@ -68,10 +68,10 @@ class ForecastingScoringLoss(nn.Module):
 
     def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
-        distances = torch.max(
+        distances = torch.mean(
             torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
             + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2), dim=-1
-        )[0]
+        )
         closest_target_index = torch.argmin(distances, dim=-1)
         closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
 
@@ -85,7 +85,7 @@ class ForecastingScoringLoss(nn.Module):
 class LiteTNTLoss(nn.Module):
     def __init__(self, traj_scoring: bool = True, targets_delta: float = 0.04, forecasting_delta: float = 0.04):
         super(LiteTNTLoss, self).__init__()
-        self._traj_scoring_lambda = 0.2 if traj_scoring else 0.0
+        self._traj_scoring_lambda = 0.1 if traj_scoring else 0.0
         self._tg_loss = TargetsLoss(delta=targets_delta)
         self._tf_loss = ForecastingLoss(delta=forecasting_delta)
         self._tfs_loss = ForecastingScoringLoss()
@@ -104,7 +104,7 @@ class LiteTNTLoss(nn.Module):
         tf_huber_loss = self._tf_loss(forecasts, gt_traj)
         tf_conf_loss = self._tfs_loss(traj_conf, forecasts, gt_traj)
 
-        total_loss = 0.2*tg_ce_loss + 0.1*tg_huber_loss + 0.8*tf_huber_loss + self._traj_scoring_lambda*tf_conf_loss
+        total_loss = 0.1*tg_ce_loss + 0.1*tg_huber_loss + 1.0*tf_huber_loss + self._traj_scoring_lambda*tf_conf_loss
         return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_conf_loss
 
 
