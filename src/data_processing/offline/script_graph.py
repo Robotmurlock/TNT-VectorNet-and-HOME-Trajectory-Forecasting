@@ -119,12 +119,24 @@ def sample_anchor_points(candidate_polylines: List[np.ndarray], sample_size: int
 
     Returns: Anchors (targets)
     """
-    assert sampling_algorithm in ['polyline', 'curve'], 'Unkown algorithm. Available: "polyline" and "curve"'
+    assert sampling_algorithm in ['polyline', 'curve'], 'Unknown algorithm. Available: "polyline" and "curve"'
 
     anchors_samples = []
-    candidate_polylines = np.unique(candidate_polylines, axis=0)
+    n_candidate_polylines = len(candidate_polylines)
+    unique_candidate_polylines = []
+    for i in range(n_candidate_polylines):
+        skip = False
+        for j in range(i+1, n_candidate_polylines):
+            if candidate_polylines[i].shape != candidate_polylines[j].shape:
+                continue
+            if np.abs(candidate_polylines[i] - candidate_polylines[j]).sum() < 1e-3:
+                skip = True
+                break
+        if not skip:
+            unique_candidate_polylines.append(candidate_polylines[i])
+    candidate_polylines = unique_candidate_polylines
+    n_candidate_polylines = len(candidate_polylines)
 
-    n_candidate_polylines = candidate_polylines.shape[0]
     points_per_candidate = [sample_size // n_candidate_polylines for _ in range(n_candidate_polylines-1)]
     points_per_candidate.append(sample_size - sum(points_per_candidate))
 
