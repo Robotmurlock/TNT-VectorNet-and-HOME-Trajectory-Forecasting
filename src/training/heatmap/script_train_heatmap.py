@@ -34,7 +34,7 @@ def run(config: configparser.GlobalConfig):
     epochs = 30
 
     model.train()
-    for epoch in range(1, epochs+1):
+    for epoch in tqdm(range(1, epochs+1)):
         total_loss = 0.0
         n_steps = 0
 
@@ -58,6 +58,7 @@ def run(config: configparser.GlobalConfig):
     Path(os.path.join(config.global_path, 'model_storage', 'heatmap_targets')).mkdir(exist_ok=True, parents=True)
     torch.save(model.state_dict(), os.path.join(config.global_path, 'model_storage', 'heatmap_targets', 'last.ckpt'))
 
+    return
     fig = plt.figure(figsize=(10, 8))
     model.eval()
     result_path = os.path.join(config.global_path, 'test_data', 'result')

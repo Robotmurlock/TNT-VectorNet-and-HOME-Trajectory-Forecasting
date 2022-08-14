@@ -35,10 +35,10 @@ raster:
     output_path: 'model_storage/heatmap_tf'
     n_workers: 8
     parameters:
-      epochs: 100
+      epochs: 20
       lr: 0.01
       batch_size: 128
-      sched_step: 30
+      sched_step: 10
       sched_gamma: 0.1
   train_heatmap:
     input_path: 'x'
