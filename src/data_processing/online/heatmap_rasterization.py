@@ -28,7 +28,7 @@ def rotate_image(image, angle, center=None, scale=1.0):
     return rotated
 
 
-def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: float) -> np.ndarray:
+def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: float, size: int = 224) -> np.ndarray:
     """
     Pads driveable area by view
 
@@ -36,6 +36,7 @@ def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: fl
         da_map: Driveable Area Map
         view: Agent View
         angle: Scene rotation angle
+        size: 224
 
     Returns: Padded Agent driveable area (by view)
     """
@@ -43,20 +44,20 @@ def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: fl
     da_raster = da_map[view.left:view.right, view.up:view.bottom].copy()
     padsize_up = max(-view.left, 0)
     if padsize_up > 0:
-        pad_up = np.zeros(shape=(padsize_up, da_raster.shape[2]))
+        pad_up = np.zeros(shape=(padsize_up, size))
         da_raster = np.concatenate([pad_up, da_raster], axis=1)
     padsize_down = max(view.right-da_map.shape[0], 0)
     if padsize_down > 0:
-        pad_down = np.zeros(shape=(padsize_down, da_raster.shape[2]))
+        pad_down = np.zeros(shape=(padsize_down, size))
         da_raster = np.concatenate([da_raster, pad_down], axis=1)
     padsize_left = max(-view.up, 0)
     if padsize_left > 0:
-        pad_left = np.zeros(shape=(da_raster.shape[1], padsize_left))
-        da_raster = np.concatenate([pad_left, da_raster], axis=2)
+        pad_left = np.zeros(shape=(size, padsize_left))
+        da_raster = np.concatenate([pad_left, da_raster], axis=1)
     padsize_right = max(view.bottom-da_map.shape[1], 0)
     if padsize_right > 0:
-        pad_right = np.zeros(shape=(da_raster.shape[1], padsize_right))
-        da_raster = np.concatenate([da_raster, pad_right], axis=2)
+        pad_right = np.zeros(shape=(size, padsize_right))
+        da_raster = np.concatenate([da_raster, pad_right], axis=1)
 
     da_raster = rotate_image(da_raster, -(180 / np.pi) * angle)
     da_raster = da_raster.reshape(1, *da_raster.shape)
@@ -212,17 +213,18 @@ def rasterize_candidate_centerlines(
     v_halfheight, v_halfwidth = view.height // 2, view.width // 2
 
     for cc_index in range(centerline_candidate_features.shape[0]):
-        y, x, mask = [int(x) for x in centerline_candidate_features[0, cc_index]]
-        if mask == 0:
-            continue
+        for coord_index in range(centerline_candidate_features.shape[1]):
+            y, x, mask = [int(x) for x in centerline_candidate_features[cc_index, coord_index]]
+            if mask == 0:
+                continue
 
-        if not view.contains(x, y):
-            # Lane point is not in viewpoint
-            continue
+            if not view.contains(x, y):
+                # Lane point is not in viewpoint
+                continue
 
-        up, bottom = v_halfheight + x - clp_halfheight, v_halfheight + x + clp_halfwidth
-        left, right = v_halfwidth + y - clp_halfheight, v_halfwidth + y + clp_halfwidth
-        rasterized_candidate_centerlines[0, up:bottom, left:right] = 1
+            up, bottom = v_halfheight + x - clp_halfheight, v_halfheight + x + clp_halfwidth
+            left, right = v_halfwidth + y - clp_halfheight, v_halfwidth + y + clp_halfwidth
+            rasterized_candidate_centerlines[0, up:bottom, left:right] = 1
 
     expected_shape = (1, view.height, view.width)
     assert expected_shape == rasterized_candidate_centerlines.shape, \
@@ -237,7 +239,8 @@ def create_heatmap(
     view: RectangleBox,
     kernel_size: int,
     sigma: int,
-    object_shape: List[int]
+    object_shape: List[int],
+    size: int = 224
 ) -> np.ndarray:
     """
     Creates ground truth heatmap by encoding by applying guass kernerl on ground truth location of last agent point in
@@ -250,6 +253,7 @@ def create_heatmap(
         kernel_size: Gauss kernel size
         sigma: Gauss kernel sigma
         object_shape: Agent object shape
+        size:
 
     Returns: Ground Truth Heatmap
     """
@@ -259,7 +263,7 @@ def create_heatmap(
 
     # Add agent rectangle at position
     y, x = [int(x) for x in agent_traj_gt[-1]]
-    y_center, x_center = v_halfheight + y, v_halfwidth + x
+    y_center, x_center = min(size-1, max(0, v_halfheight + y)), min(size-1, max(0, v_halfwidth + x))
     up, bottom = x_center - o_halfheight, x_center + o_halfheight + 1
     left, right = y_center - o_halfwidth, y_center + o_halfwidth + 1
     heatmap[up:bottom, left:right] = 1
