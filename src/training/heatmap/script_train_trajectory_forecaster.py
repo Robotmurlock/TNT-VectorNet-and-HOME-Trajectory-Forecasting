@@ -50,9 +50,10 @@ def run(config: configparser.GlobalConfig):
         model=tnt,
         train_dataloaders=train_loader,
         val_dataloaders=val_loader,
-        ckpt_path=os.path.join(model_storage_path, 'last.ckpt')
+        # ckpt_path=os.path.join(model_storage_path, 'last.ckpt')
     )
 
+    return
     index = 0
     device = 'cuda:0'
     tnt.eval()
