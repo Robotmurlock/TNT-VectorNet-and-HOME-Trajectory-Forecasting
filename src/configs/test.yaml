@@ -41,6 +41,8 @@ raster:
       sched_step: 10
       sched_gamma: 0.1
   train_heatmap:
+    batch_size: 16
+    n_workers: 8
     input_path: 'x'
     output_path: 'y'
 graph:

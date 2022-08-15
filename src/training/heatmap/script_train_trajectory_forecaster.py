@@ -53,30 +53,6 @@ def run(config: configparser.GlobalConfig):
         # ckpt_path=os.path.join(model_storage_path, 'last.ckpt')
     )
 
-    return
-    index = 0
-    device = 'cuda:0'
-    tnt.eval()
-    tnt.to(device)
-    import matplotlib.pyplot as plt
-    for agent_hist, agent_gt, agent_gt_end_point in val_loader:
-        agent_hist, agent_gt, agent_gt_end_point = agent_hist.to(device), agent_gt.to(device), agent_gt_end_point.to(device)
-        agent_pred = tnt(agent_hist, agent_gt_end_point)
-        agent_hist, agent_gt, agent_gt_end_point, agent_pred = [x.detach().cpu().numpy() for x in [agent_hist, agent_gt, agent_gt_end_point, agent_pred]]
-        agent_pred = agent_pred.cumsum(axis=2)
-        agent_gt = agent_gt.cumsum(axis=1)
-
-        for i in range(agent_hist.shape[0]):
-            fig = plt.figure(figsize=(10, 10))
-            plt.ylim((-2.5, 2.5))
-            plt.xlim((-2.5, 2.5))
-            plt.plot(agent_hist[i, :, 0], agent_hist[i, :, 1], color='red')
-            plt.plot(agent_pred[i, 0, :, 0], agent_pred[i, 0, :, 1], color='green')
-            plt.plot(agent_gt[i, :, 0], agent_gt[i, :, 1], color='blue')
-            plt.scatter(agent_gt_end_point[i, :, 0], agent_gt_end_point[i, :, 1], color='orange', s=100)
-            fig.savefig(f'tmp_{index}.png')
-            index += 1
-
 
 if __name__ == '__main__':
     run(configparser.config_from_yaml(steps.get_config_path()))
