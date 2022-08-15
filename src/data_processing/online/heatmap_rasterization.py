@@ -44,22 +44,21 @@ def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: fl
     da_raster = da_map[view.left:view.right, view.up:view.bottom].copy()
     padsize_up = max(-view.left, 0)
     if padsize_up > 0:
-        pad_up = np.zeros(shape=(padsize_up, size))
-        da_raster = np.concatenate([pad_up, da_raster], axis=1)
+        pad_up = np.zeros(shape=(padsize_up, da_raster.shape[1]))
+        da_raster = np.concatenate([pad_up, da_raster], axis=0)
     padsize_down = max(view.right-da_map.shape[0], 0)
     if padsize_down > 0:
-        pad_down = np.zeros(shape=(padsize_down, size))
-        da_raster = np.concatenate([da_raster, pad_down], axis=1)
+        pad_down = np.zeros(shape=(padsize_down, da_raster.shape[1]))
+        da_raster = np.concatenate([da_raster, pad_down], axis=0)
     padsize_left = max(-view.up, 0)
     if padsize_left > 0:
-        pad_left = np.zeros(shape=(size, padsize_left))
+        pad_left = np.zeros(shape=(da_raster.shape[0], padsize_left))
         da_raster = np.concatenate([pad_left, da_raster], axis=1)
     padsize_right = max(view.bottom-da_map.shape[1], 0)
     if padsize_right > 0:
-        pad_right = np.zeros(shape=(size, padsize_right))
+        pad_right = np.zeros(shape=(da_raster.shape[0], padsize_right))
         da_raster = np.concatenate([da_raster, pad_right], axis=1)
 
-    da_raster = rotate_image(da_raster, -(180 / np.pi) * angle)
     da_raster = da_raster.reshape(1, *da_raster.shape)
     return da_raster
 
