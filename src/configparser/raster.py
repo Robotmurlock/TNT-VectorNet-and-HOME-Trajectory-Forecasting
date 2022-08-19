@@ -12,6 +12,7 @@ class DataProcessRasterizationParametersConfig:
     centerline_point_shape: List[int]
     gauss_kernel_size: int
     gauss_kernel_sigma: int
+    max_neighbours: int
 
     @property
     def agent_view_window_halfize(self) -> int:
@@ -50,6 +51,7 @@ class RasterizationTrainTrajectoryForecasterConfig:
     val_input_path: str
     output_path: str
     n_workers: int
+    model_name: str
     parameters: RasterizationTrainTrajectoryForecasterParametersConfig
 
 

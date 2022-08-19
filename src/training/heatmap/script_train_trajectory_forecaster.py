@@ -30,7 +30,7 @@ def run(config: configparser.GlobalConfig):
         trajectory_future_length=config.global_parameters.trajectory_future_window_length,
         train_config=train_parameters
     )
-    logger = TensorBoardLogger(model_storage_path, name='heatmap_trajectory_forecaster_logs')
+    logger = TensorBoardLogger(model_storage_path, name=train_config.model_name)
     trainer = Trainer(
         gpus=1,
         accelerator='cuda',
@@ -40,7 +40,7 @@ def run(config: configparser.GlobalConfig):
         callbacks=[
             ModelCheckpoint(
                 dirpath=model_storage_path,
-                monitor='val_loss',
+                monitor='min_ade_val',
                 save_last=True,
                 save_top_k=1
             )
@@ -50,7 +50,6 @@ def run(config: configparser.GlobalConfig):
         model=tnt,
         train_dataloaders=train_loader,
         val_dataloaders=val_loader,
-        # ckpt_path=os.path.join(model_storage_path, 'last.ckpt')
     )
 
 

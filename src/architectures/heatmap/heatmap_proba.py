@@ -1,4 +1,4 @@
-from architectures.components import CNNBlock, TransposeCNNBlock
+from architectures.components import CNNBlock, TransposeCNNBlock, MultiHeadAttention
 
 import torch
 import torch.nn as nn
@@ -50,9 +50,9 @@ class HeatmapOutputDecoder(nn.Module):
         return x
 
 
-class TrajectoryEncoder(nn.Module):
+class TrajectoryObjectEncoder(nn.Module):
     def __init__(self, n_features: int, trajectory_length: int):
-        super(TrajectoryEncoder, self).__init__()
+        super(TrajectoryObjectEncoder, self).__init__()
         self._lstm1 = nn.LSTM(input_size=n_features, hidden_size=32)
         self._lstm2 = nn.LSTM(input_size=32, hidden_size=64)
         self._linear = nn.Linear(in_features=trajectory_length*64, out_features=128)
@@ -72,20 +72,48 @@ class TrajectoryEncoder(nn.Module):
         return x
 
 
+class TrajectoryAttentionEncoder(nn.Module):
+    def __init__(self, n_features: int, trajectory_length: int):
+        super(TrajectoryAttentionEncoder, self).__init__()
+        self._agent_encoder = TrajectoryObjectEncoder(n_features=n_features, trajectory_length=trajectory_length)
+        self._object_encoder = TrajectoryObjectEncoder(n_features=n_features, trajectory_length=trajectory_length)
+        self._attention = MultiHeadAttention(in_features=128, head_num=8, activation=nn.ReLU())
+        self._linear = nn.Linear(in_features=256, out_features=128)
+        self._lrelu = nn.LeakyReLU(0.3)
+
+
+    def forward(self, agent_hist: torch.Tensor, objects_hist: torch.Tensor) -> torch.Tensor:
+        # trajectory encoding
+        batch_size, n_objects = objects_hist.shape[:2]
+        agent_features = self._agent_encoder(agent_hist)
+        agent_features_expanded = agent_features.view(agent_features.shape[0], 1, *agent_features.shape[1:])
+
+        objects_hist = objects_hist.view(-1, *objects_hist.shape[-2:])
+        objects_features = self._object_encoder(objects_hist)
+        objects_features = objects_features.view(batch_size, n_objects, objects_features.shape[-1])
+        all_features = torch.cat([agent_features_expanded, objects_features], dim=1)
+
+        # attention
+        att_out = self._attention(all_features)
+        agent_features = torch.cat([agent_features, att_out[:, 0, :]], dim=-1)
+
+        return self._lrelu(self._linear(agent_features))
+
+
 class HeatmapModel(nn.Module):
     def __init__(self, encoder_input_shape: Tuple[int, int, int], decoder_input_shape: Tuple[int, int, int], traj_features: int, traj_length: int):
         super(HeatmapModel, self).__init__()
         self._encoder = RasterEncoder(encoder_input_shape)
         self._decoder = HeatmapOutputDecoder((decoder_input_shape[0] + 128, decoder_input_shape[1], decoder_input_shape[2]))
-        self._trajectory_encoder = TrajectoryEncoder(traj_features, traj_length)
+        self._trajectory_encoder = TrajectoryAttentionEncoder(traj_features, traj_length)
 
         self._conv1 = CNNBlock(in_channels=encoder_input_shape[0]+32, out_channels=16, kernel_size=7, padding='same')
         self._conv2 = nn.Conv2d(in_channels=16, out_channels=1, kernel_size=7, padding='same')
         self._sigmoid = nn.Sigmoid()
 
-    def forward(self, raster: torch.Tensor, trajectory: torch.Tensor) -> torch.Tensor:
+    def forward(self, raster: torch.Tensor, agent_hist: torch.Tensor, objects_hist: torch.Tensor) -> torch.Tensor:
         raster_features = self._encoder(raster)
-        traj_features = self._trajectory_encoder(trajectory)
+        traj_features = self._trajectory_encoder(agent_hist, objects_hist)
         expanded_traj_features = traj_features.view(*traj_features.shape[-2:], 1, 1) \
             .expand(*traj_features.shape[-2:], *raster_features.shape[-2:])
 
@@ -100,7 +128,7 @@ class HeatmapModel(nn.Module):
 def test():
     # test encoder
     encoder = RasterEncoder(input_shape=(48, 224, 224))
-    inputs = torch.rand(4, 48, 224, 224)
+    inputs = torch.randn(4, 48, 224, 224)
     features = encoder(inputs)
 
     expected_shape = (512, 14, 14)
@@ -113,13 +141,22 @@ def test():
     expected_shape = (32, 224, 224)
     assert tuple(heatmap.shape[1:]) == expected_shape, f'{expected_shape} != {heatmap.shape[1:]}'
 
-    # test trajectory encoder
-    traj_encoder = TrajectoryEncoder(3, 20)
-    trajectory = torch.rand(4, 20, 3)
+    # test object trajectory encoder
+    traj_encoder = TrajectoryObjectEncoder(3, 20)
+    trajectory = torch.randn(4, 20, 3)
     traj_features = traj_encoder(trajectory)
 
     expected_shape = (128, )
-    assert tuple(traj_features.shape[1:]) == expected_shape, f'{expected_shape} != {heatmap.shape[1:]}'
+    assert tuple(traj_features.shape[1:]) == expected_shape, f'{expected_shape} != {traj_features.shape[1:]}'
+
+    # test full trajectory encoder
+    full_traj_encoder = TrajectoryAttentionEncoder(3, 20)
+    agent_hist = torch.randn(4, 20, 3)
+    objects_hist = torch.randn(4, 20, 20, 3)
+    full_traj_features = full_traj_encoder(agent_hist, objects_hist)
+
+    expected_shape = (128, )
+    assert tuple(full_traj_features.shape[1:]) == expected_shape, f'{expected_shape} != {full_traj_features.shape}'
 
     # test heatmap model
     heatmap_model = HeatmapModel(encoder_input_shape=(48, 224, 224), decoder_input_shape=(512, 14, 14), traj_features=3, traj_length=20)

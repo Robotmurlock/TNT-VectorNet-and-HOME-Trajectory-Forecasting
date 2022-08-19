@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from tqdm import tqdm
 import cv2
 import numpy as np
@@ -209,7 +209,6 @@ def rasterize_candidate_centerlines(
     Returns: Rasterized candidate lane centerlines
 
     """
-    # TODO: Add centerline rasterization for other objects?
     rasterized_candidate_centerlines = np.zeros(shape=(1, view.height, view.width))
     clp_halfheight, clp_halfwidth = centerline_point_shape[0] // 2, centerline_point_shape[1] // 2
     v_halfheight, v_halfwidth = view.height // 2, view.width // 2
@@ -292,6 +291,29 @@ def plot_all_feature_maps(rasterized_features: np.ndarray, path: str, fig: Optio
         fig.savefig(os.path.join(path, f'{feature_index:02d}.png'))
 
 
+def pad_objects_trajectories(
+    center_points:
+    np.ndarray,
+    objects_traj_hists: np.ndarray,
+    objects_traj_gts: np.ndarray,
+    max_neighbours: int
+
+) -> Tuple[np.ndarray, np.ndarray]:
+    if objects_traj_hists.shape[0] > max_neighbours:
+        object_traj_points = objects_traj_hists[:, -1]
+        distances = (object_traj_points[:, 0] - center_points[0]) ** 2 + (object_traj_points[:, 1] - center_points[1]) ** 2
+        indices = np.argsort(distances)[:max_neighbours]
+        objects_traj_hists = objects_traj_hists[indices]
+        objects_traj_gts = objects_traj_gts[indices]
+
+    if objects_traj_hists.shape[0] < max_neighbours:
+        hists_padding = np.zeros(shape=(max_neighbours - objects_traj_hists.shape[0], objects_traj_hists.shape[1], 2))
+        objects_traj_hists = np.concatenate([objects_traj_hists, hists_padding], axis=0)
+        gts_padding = np.zeros(shape=(max_neighbours - objects_traj_hists.shape[0], objects_traj_gts.shape[1], 2))
+        objects_traj_gts = np.concatenate([objects_traj_gts, gts_padding], axis=0)
+
+    return objects_traj_hists, objects_traj_gts
+
 class ScenarioRasterPreprocess:
     def __init__(self, config: configparser.GlobalConfig, disable_visualization: bool = False):
         # configs
@@ -347,6 +369,13 @@ class ScenarioRasterPreprocess:
             candidate_centerlines_raster
         ])
 
+        objects_traj_hists, objects_traj_gts = pad_objects_trajectories(
+            scenario.center_point,
+            scenario.objects_traj_hists,
+            scenario.objects_traj_gts,
+            self._params.max_neighbours
+        )
+
         heatmap = create_heatmap(
             agent_traj_gt=scenario.agent_traj_gt,
             driveable_area=da_raster,
@@ -361,8 +390,8 @@ class ScenarioRasterPreprocess:
             center_point=scenario.center_point,
             agent_traj_hist=scenario.agent_traj_hist,
             agent_traj_gt=scenario.agent_traj_gt,
-            objects_traj_hists=scenario.objects_traj_hists,
-            objects_traj_gts=scenario.objects_traj_gts,
+            objects_traj_hists=objects_traj_hists,
+            objects_traj_gts=objects_traj_gts,
             raster_features=rasterized_features,
             heatmap=heatmap,
             angle=scenario.angle

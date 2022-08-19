@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 from configparser.raster import RasterizationTrainTrajectoryForecasterParametersConfig
-
+from evaluation import metrics
 
 class TrajectoryForecaster(nn.Module):
     def __init__(self, in_features: int, trajectory_hist_length: int, trajectory_future_length: int):
@@ -53,7 +53,9 @@ class LightningTrajectoryForecaster(LightningModule):
 
         self._log_history = {
             'training_loss': [],
-            'val_loss': []
+            'val_loss': [],
+            'min_ade_val': [],
+            'min_fde_val': []
         }
 
     def forward(self, traj_hist: torch.Tensor, end_point: torch.Tensor) -> torch.Tensor:
@@ -67,10 +69,16 @@ class LightningTrajectoryForecaster(LightningModule):
         return loss
 
     def validation_step(self, batch, *args, **kwargs) -> torch.Tensor:
-        traj, gt_traj, end_point = batch
-        outputs = self._model(traj, end_point).squeeze(1)
+        hist_traj, gt_traj, end_point = batch
+        outputs = self._model(hist_traj, end_point).squeeze(1)
         loss = F.mse_loss(outputs, gt_traj)
         self._log_history['val_loss'].append(loss)
+
+        min_ade, _ = metrics.minADE(outputs, gt_traj)
+        min_fde, _ = metrics.minFDE(outputs, gt_traj)
+        self._log_history['min_ade_val'].append(min_ade)
+        self._log_history['min_fde_val'].append(min_fde)
+
         return loss
 
     def on_validation_epoch_end(self, *args, **kwargs) -> None:
