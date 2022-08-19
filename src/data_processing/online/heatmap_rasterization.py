@@ -41,7 +41,7 @@ def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: fl
     Returns: Padded Agent driveable area (by view)
     """
     # TODO: fix left-up, right-bottom mix
-    da_raster = da_map[view.left:view.right, view.up:view.bottom].copy()
+    da_raster = da_map[max(0, view.left):view.right, max(0, view.up):view.bottom].copy()
     padsize_up = max(-view.left, 0)
     if padsize_up > 0:
         pad_up = np.zeros(shape=(padsize_up, da_raster.shape[1]))
@@ -59,7 +59,10 @@ def form_driveable_area_raster(da_map: np.ndarray, view: RectangleBox, angle: fl
         pad_right = np.zeros(shape=(da_raster.shape[0], padsize_right))
         da_raster = np.concatenate([da_raster, pad_right], axis=1)
 
+    da_raster = rotate_image(da_raster, -(180 / np.pi) * angle)
     da_raster = da_raster.reshape(1, *da_raster.shape)
+    assert da_raster.shape == (1, size, size), f'Wrong DA raster shape: Expected {(1, size, size)} but found {da_raster.shape}! ' \
+        f'view: {view}, DA map shape: {da_map.shape}'
     return da_raster
 
 
