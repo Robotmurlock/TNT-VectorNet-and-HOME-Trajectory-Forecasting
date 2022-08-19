@@ -168,7 +168,7 @@ class ScenarioData:
         # remove duplicated labels
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc='upper right')
+        plt.legend(by_label.values(), by_label.keys(), loc='upper right', prop={'size': 14})
 
         # set title and axis info
         plt.title(f'Scenario {self.id}')
