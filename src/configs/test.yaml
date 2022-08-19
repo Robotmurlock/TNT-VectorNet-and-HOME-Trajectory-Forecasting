@@ -45,6 +45,7 @@ raster:
   train_heatmap:
     batch_size: 16
     n_workers: 8
+    epochs: 30
     input_path: 'x'
     output_path: 'y'
 graph:

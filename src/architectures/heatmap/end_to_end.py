@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from typing import Tuple, Dict, Union
+from typing import Tuple, Dict
 
 
-from architectures.heatmap import HeatmapModel, ModalitySampler, LightningTrajectoryForecaster
+from architectures.heatmap import HeatmapModel, TorchModalitySampler, LightningTrajectoryForecaster
 
 
 class HeatmapTrajectoryForecaster(nn.Module):
@@ -13,7 +13,6 @@ class HeatmapTrajectoryForecaster(nn.Module):
         decoder_input_shape: Tuple[int, int, int],
         traj_features: int,
         traj_length: int,
-        device: Union[str, torch.device],
 
         n_targets: int,
         radius: int
@@ -26,7 +25,7 @@ class HeatmapTrajectoryForecaster(nn.Module):
             traj_length=traj_length
         )
 
-        self._target_sampler = ModalitySampler(n_targets=n_targets, radius=radius, device=device)
+        self._target_sampler = TorchModalitySampler(n_targets=n_targets, radius=radius)
 
         # FIXME
         self._traj_features = traj_features
@@ -69,8 +68,7 @@ def test():
         traj_length=20,
 
         n_targets=6,
-        radius=2,
-        device='cpu'
+        radius=2
     )
 
     outputs = htf(raster, trajectory)

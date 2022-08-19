@@ -160,7 +160,7 @@ def test():
 
     # test heatmap model
     heatmap_model = HeatmapModel(encoder_input_shape=(48, 224, 224), decoder_input_shape=(512, 14, 14), traj_features=3, traj_length=20)
-    heatmap = heatmap_model(inputs, trajectory)
+    heatmap = heatmap_model(inputs, trajectory, objects_hist)
 
     expected_shape = (1, 224, 224)
     assert tuple(heatmap.shape[1:]) == expected_shape, f'{expected_shape} != {heatmap.shape[1:]}'

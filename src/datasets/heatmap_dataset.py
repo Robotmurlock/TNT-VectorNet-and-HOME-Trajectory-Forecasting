@@ -50,12 +50,14 @@ class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
         raster_features = torch.tensor(scenario_data.raster_features, dtype=torch.float32)
         da_area = torch.tensor(scenario_data.raster_features[0, ...], dtype=torch.float32)
         agent_traj_hist = torch.tensor(scenario_data.agent_traj_hist / 25.0, dtype=torch.float32)
+        objects_traj_hist = torch.tensor(scenario_data.objects_traj_hists / 25.0, dtype=torch.float32)
         gt_heatmap = torch.unsqueeze(torch.tensor(scenario_data.heatmap, dtype=torch.float32), dim=0)
 
         return {
             'raster': raster_features,
             'agent_traj_hist': agent_traj_hist,
             'agent_traj_diff': scenario_data.ground_truth_trajectory_difference,
+            'objects_traj_hist': objects_traj_hist,
             'da_area': da_area,
             'heatmap': gt_heatmap,
             'id': scenario_data.id,

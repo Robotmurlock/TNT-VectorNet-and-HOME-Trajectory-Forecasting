@@ -307,10 +307,12 @@ def pad_objects_trajectories(
         objects_traj_gts = objects_traj_gts[indices]
 
     if objects_traj_hists.shape[0] < max_neighbours:
-        hists_padding = np.zeros(shape=(max_neighbours - objects_traj_hists.shape[0], objects_traj_hists.shape[1], 2))
+        hists_padding = np.zeros(shape=(max_neighbours - objects_traj_hists.shape[0], objects_traj_hists.shape[1], 3))
         objects_traj_hists = np.concatenate([objects_traj_hists, hists_padding], axis=0)
-        gts_padding = np.zeros(shape=(max_neighbours - objects_traj_hists.shape[0], objects_traj_gts.shape[1], 2))
+        gts_padding = np.zeros(shape=(max_neighbours - objects_traj_hists.shape[0], objects_traj_gts.shape[1], 3))
         objects_traj_gts = np.concatenate([objects_traj_gts, gts_padding], axis=0)
+
+    assert objects_traj_hists.shape == (max_neighbours, 20, 3)
 
     return objects_traj_hists, objects_traj_gts
 
