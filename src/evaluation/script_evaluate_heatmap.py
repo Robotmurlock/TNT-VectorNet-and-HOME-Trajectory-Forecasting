@@ -18,8 +18,7 @@ def run(config: configparser.GlobalConfig):
         traj_length=config.global_parameters.trajectory_history_window_length,
 
         n_targets=6,
-        radius=2,
-        device='cuda:0'
+        radius=2
     )
     model.load_weights(
         heatmap_estimator_path=os.path.join(config.global_path, 'model_storage', 'heatmap_targets', 'last.ckpt'),

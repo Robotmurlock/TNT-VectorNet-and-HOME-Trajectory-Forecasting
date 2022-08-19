@@ -32,6 +32,7 @@ class DataProcessRasterizationConfig:
 class RasterizationTrainHeatmapConfig:
     batch_size: int
     n_workers: int
+    epochs: int
     input_path: str
     output_path: str
 

@@ -33,9 +33,9 @@ def train_epoch(
     for data in data_loader:
         optimizer.zero_grad()
 
-        raster, trajectory, da_area, true_heatmap = data['raster'].to(device), data['agent_traj_hist'].to(device), \
-            data['da_area'].to(device), data['heatmap'].to(device)
-        pred_heatmap = model(raster, trajectory)
+        raster, agent_hist, objects_hist, da_area, true_heatmap = data['raster'].to(device), data['agent_traj_hist'].to(device), \
+            data['objects_traj_hist'].to(device), data['da_area'].to(device), data['heatmap'].to(device)
+        pred_heatmap = model(raster, agent_hist, objects_hist)
 
         loss = criteria(pred_heatmap, true_heatmap, da_area)
         loss.backward()
@@ -63,9 +63,9 @@ def eval_epoch(
 
     model.eval()
     for data in data_loader:
-        raster, trajectory, da_area, true_heatmap = data['raster'].to(device), data['agent_traj_hist'].to(device), \
-            data['da_area'].to(device), data['heatmap'].to(device)
-        pred_heatmap = model(raster, trajectory)
+        raster, agent_hist, objects_hist, da_area, true_heatmap = data['raster'].to(device), data['agent_traj_hist'].to(device), \
+            data['objects_traj_hist'].to(device), data['da_area'].to(device), data['heatmap'].to(device)
+        pred_heatmap = model(raster, agent_hist, objects_hist)
 
         loss = criteria(pred_heatmap, true_heatmap, da_area)
 
@@ -79,25 +79,26 @@ def run(config: configparser.GlobalConfig):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # TODO: Move to config
     logging.info(f'Training on `{device}` device')
 
+    parameters = config.raster.train_heatmap
     train_dataset = HeatmapOutputRasterScenarioDatasetTorchWrapper(config, 'train')
     train_data_loader = DataLoader(
         dataset=train_dataset,
-        batch_size=config.raster.train_heatmap.batch_size,
-        num_workers=config.raster.train_heatmap.n_workers
+        batch_size=parameters.batch_size,
+        num_workers=parameters.n_workers
     )
     val_dataset = HeatmapOutputRasterScenarioDatasetTorchWrapper(config, 'val')
-    val_data_loader = DataLoader(val_dataset, batch_size=16, num_workers=4)
+    val_data_loader = DataLoader(val_dataset, batch_size=parameters.batch_size, num_workers=parameters.n_workers)
 
     model = HeatmapModel(
         encoder_input_shape=(9, 224, 224),
         decoder_input_shape=(512, 14, 14),
         traj_features=3,
-        traj_length=20
+        traj_length=config.global_parameters.trajectory_history_window_length
     ).to(device)
     criteria = PixelFocalLoss().to(device)
     optimizer = optim.Adam(params=model.parameters(), lr=1e-3)
     sched = optim.lr_scheduler.StepLR(optimizer, gamma=0.1, step_size=15)
-    epochs = 30
+    epochs = parameters.epochs
 
     model.train()
     for epoch in tqdm(range(1, epochs+1)):

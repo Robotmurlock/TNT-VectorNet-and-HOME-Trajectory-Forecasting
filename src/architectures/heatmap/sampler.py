@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from typing import Union
+from time import time
 
 
 class ModalitySampler(nn.Module):
@@ -67,6 +68,42 @@ class ModalitySampler(nn.Module):
         return torch.stack(result_all).to(self._device)
 
 
+class TorchModalitySampler(nn.Module):
+    def __init__(self, n_targets: int, radius: int, swap_rc: bool = True):
+        super(TorchModalitySampler, self).__init__()
+        self._n_targets = n_targets
+        self._radius = radius
+        self._reclen = 2*self._radius+1
+        self._swap_rc = swap_rc
+
+        # components
+        self._avgpool = nn.AvgPool2d(kernel_size=self._reclen, stride=1)
+
+    @torch.no_grad()
+    def forward(self, heatmap: torch.Tensor) -> torch.Tensor:
+        batch_size = heatmap.shape[0]
+        hm = torch.clone(heatmap)
+
+        batch_result = []
+        for batch_index in range(batch_size):
+            result = []
+            for _ in range(self._n_targets):
+                agg = self._avgpool(hm[batch_index])[0]
+                coords = (agg == torch.max(agg)).nonzero()[0]
+                hm[batch_index, 0, coords[0]:coords[0]+self._reclen, coords[1]:coords[1]+self._reclen] = 0.0
+                result.append(coords+self._radius)
+
+            result = torch.stack(result)
+            batch_result.append(result)
+
+        batch_result = torch.stack(batch_result)
+        if self._swap_rc:
+            batch_result = batch_result[:, :, [1, 0]]
+        return batch_result
+
+
+
+
 class KMeansProbSampler(nn.Module):
     def __init__(self, n_targets: int, n_iterations: int):
         super(KMeansProbSampler, self).__init__()
@@ -121,15 +158,26 @@ def gkern(kernlen=100, std=16):
 
 
 def test():
-    heatmap = torch.abs(torch.randn(4, 1, 100, 100))
-    kernel = gkern()
-    heatmap = heatmap * kernel
+    size = 100
+    iterations = 1000
 
-    modality_sampler = ModalitySampler(n_targets=6, radius=2, device='cpu', swap_rc=False)
-    modal_clusters = modality_sampler(heatmap)
+    kernel = gkern(kernlen=size)
+    modality_sampler = ModalitySampler(n_targets=6, radius=2, device='cpu', swap_rc=True)
+    torch_sampler = TorchModalitySampler(n_targets=6, radius=2, swap_rc=True)
 
-    print(modal_clusters.shape)
-    print(modal_clusters)
+    start_time = time()
+    for _ in range(iterations):
+        heatmap = torch.abs(torch.randn(4, 1, size, size))
+        heatmap = heatmap * kernel
+        _ = modality_sampler(heatmap)
+    print(f'Average Time: {(time() - start_time) / iterations:.2f}s')
+
+    start_time = time()
+    for _ in range(iterations):
+        heatmap = torch.abs(torch.randn(4, 1, size, size))
+        heatmap = heatmap * kernel
+        _ = torch_sampler(heatmap)
+    print(f'Average Time: {(time() - start_time) / iterations:.2f}s')
 
 
 if __name__ == '__main__':
