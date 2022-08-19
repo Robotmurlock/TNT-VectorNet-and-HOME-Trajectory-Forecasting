@@ -4,10 +4,10 @@ global_parameters:
   trajectory_history_window_length: 20
   trajectory_future_window_length: 30
 data_process:
-  input_path: 'test_data/sample2'
+  input_path: 'test_data/dataset'
   output_path: 'test_data/internal'
   n_processes: 1
-  visualize: True
+  visualize: False
   parameters:
     trajectory_min_history_window_length: 5
     object_trajectory_min_history_window_length: 5
@@ -29,13 +29,15 @@ raster:
       centerline_point_shape: [6, 6]
       gauss_kernel_size: 25
       gauss_kernel_sigma: 4
+      max_neighbours: 20
   train_tf:
     train_input_path: 'test_data/internal/train'
     val_input_path: 'test_data/internal/val'
     output_path: 'model_storage/heatmap_tf'
+    model_name: 'home-tf-baseline'
     n_workers: 8
     parameters:
-      epochs: 20
+      epochs: 30
       lr: 0.01
       batch_size: 128
       sched_step: 10
