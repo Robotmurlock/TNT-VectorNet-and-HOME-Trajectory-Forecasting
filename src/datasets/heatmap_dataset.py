@@ -2,6 +2,7 @@ import os
 from typing import List, Dict
 from torch.utils.data import Dataset
 import torch
+import random
 
 from datasets.data_models.raster_scenario import RasterScenarioData
 from data_processing.online.heatmap_rasterization import ScenarioRasterPreprocess
@@ -44,9 +45,15 @@ class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
             config: Config
         """
         self.dataset = HeatmapOutputRasterScenarioDataset(config, split)
+        self._augmentation = config.raster.train_heatmap.augmentation
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         scenario_data = self.dataset[index]
+        if self._augmentation:
+            r = random.uniform(0, 1)
+            if r < 5:
+                scenario_data.flip()
+
         raster_features = torch.tensor(scenario_data.raster_features, dtype=torch.float32)
         da_area = torch.tensor(scenario_data.raster_features[0, ...], dtype=torch.float32)
         agent_traj_hist = torch.tensor(scenario_data.agent_traj_hist / 25.0, dtype=torch.float32)

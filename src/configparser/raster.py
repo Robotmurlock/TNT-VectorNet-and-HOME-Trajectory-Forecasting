@@ -33,6 +33,7 @@ class RasterizationTrainHeatmapConfig:
     batch_size: int
     n_workers: int
     epochs: int
+    augmentation: bool
     input_path: str
     output_path: str
 
