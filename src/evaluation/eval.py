@@ -65,7 +65,8 @@ def evaluate(
                 offsets=outputs['all_offsets'],
                 confidences=outputs['all_target_confidences'],
                 ground_truth=ground_truth,
-                forecasts=outputs['all_forecasts'],
+                forecasted_trajectories_gt_end_point=outputs['forecasts'],
+                forecasted_trajectories=outputs['all_forecasts'],
                 traj_conf=outputs['all_forecast_scores'],
                 gt_traj=gt_traj)
 

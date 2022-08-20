@@ -58,10 +58,17 @@ def minFDE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.T
         return torch.mean(fde[min_fde_index]), min_fde_index
     elif len(fde.shape) == 2:
         # batched
-        min_fde_index = torch.argmin(fde, dim=1)
-        return torch.mean(fde[:, min_fde_index]), min_fde_index
+        n_batches = fde.shape[0]
+        min_fde_indices = []
+        min_fde_values = []
+        for batch_index in range(n_batches):
+            min_fde_index = torch.argmin(fde[batch_index, :])
+            min_fde = fde[batch_index, min_fde_index]
+            min_fde_indices.append(min_fde_index)
+            min_fde_values.append(min_fde)
+
+        return torch.mean(torch.stack(min_fde_values)), torch.tensor(min_fde_indices, dtype=torch.long)
     else:
-        # invalid
         raise ValueError(f'Invalid tensor shape: {fde.shape}')
 
 
@@ -77,7 +84,12 @@ def minADE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.T
     """
     _, min_fde_index = minFDE(forecasts, ground_truth)
     ade = torch.mean(torch.sqrt((forecasts[..., 0] - ground_truth[..., 0]) ** 2 + (forecasts[..., 1] - ground_truth[..., 1]) ** 2), dim=-1)
-    return torch.mean(ade[:, min_fde_index] if len(ade.shape) == 2 else ade[min_fde_index]), min_fde_index
+    if len(ade.shape) == 1:
+        return ade[min_fde_index], min_fde_index
+    elif len(ade.shape) == 2:
+        return torch.mean(torch.stack([ade[batch_index, min_fde_index[batch_index]] for batch_index in range(ade.shape[0])])), min_fde_index
+    else:
+        raise ValueError(f'Invalid tensor shape: {ade.shape}')
 
 
 def probaMinFDE(forecasts: torch.Tensor, probas: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
@@ -112,3 +124,44 @@ def probaMinADE(forecasts: torch.Tensor, probas: torch.Tensor, ground_truth: tor
     min_ade, min_ade_index = minADE(forecasts, ground_truth)
     proba_score = -torch.log(torch.maximum(probas[min_ade_index], LOW_PROB_THRESHOLD_FOR_METRICS))
     return min_ade + proba_score
+
+
+def test():
+    batch_pred = torch.tensor([
+        [
+            [[1, 1], [2, 2], [3, 3]],
+            [[2, 5], [3, 3], [2, 8]]
+        ],
+        [
+            [[-1, 1], [-3, 3], [-4, 4]],
+            [[1, 1], [2, 3], [1, 4]]
+        ]
+    ], dtype=torch.float32)
+
+    batch_gt = torch.tensor([
+        [
+            [[1, 2], [2, 3], [3, 3]]
+        ],
+        [
+            [[1, 1], [-2, 3], [0, 4]]
+        ]
+    ], dtype=torch.float32).repeat(1, 2, 1, 1)
+
+    print(minFDE(batch_pred, batch_gt))
+    print(minADE(batch_pred, batch_gt))
+
+    # TEST
+    batch_size = 4
+    batch_pred = torch.randn(batch_size, 6, 30, 2)
+    batch_gt = torch.randn(batch_size, 1, 30, 2).repeat(1, 6, 1, 1)
+
+    total_minade = 0
+    for batch_index in range(batch_size):
+        minade_value, _ = minADE(batch_pred[batch_index], batch_gt[batch_index])
+        total_minade += minade_value.detach().item()
+    avg_minfde = total_minade / batch_size
+    assert abs(avg_minfde - minADE(batch_pred, batch_gt)[0]) < 1e-2, 'FAIL'
+
+
+if __name__ == '__main__':
+    test()
