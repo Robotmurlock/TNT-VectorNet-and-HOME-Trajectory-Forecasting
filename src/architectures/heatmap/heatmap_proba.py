@@ -53,20 +53,16 @@ class HeatmapOutputDecoder(nn.Module):
 class TrajectoryObjectEncoder(nn.Module):
     def __init__(self, n_features: int, trajectory_length: int):
         super(TrajectoryObjectEncoder, self).__init__()
-        self._lstm1 = nn.LSTM(input_size=n_features, hidden_size=32)
-        self._lstm2 = nn.LSTM(input_size=32, hidden_size=64)
-        self._linear = nn.Linear(in_features=trajectory_length*64, out_features=128)
-        self._lrelu = nn.LeakyReLU(0.3)
-        self._batch_norm = nn.BatchNorm1d(128)
+        self._lstm1 = nn.LSTM(input_size=n_features, hidden_size=32, batch_first=True, dropout=0.2)
+        self._linear = nn.Linear(in_features=trajectory_length*32, out_features=64)
+        self._lrelu = nn.LeakyReLU(0.1)
+        self._batch_norm = nn.BatchNorm1d(64)
         self._flatten = nn.Flatten()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x, _ = self._lstm1(x)
         x = self._lrelu(x)
-        x, _ = self._lstm2(x)
-        x = self._lrelu(x)
         x = self._flatten(x)
-
         x = self._batch_norm(self._linear(x))
 
         return x
@@ -77,8 +73,8 @@ class TrajectoryAttentionEncoder(nn.Module):
         super(TrajectoryAttentionEncoder, self).__init__()
         self._agent_encoder = TrajectoryObjectEncoder(n_features=n_features, trajectory_length=trajectory_length)
         self._object_encoder = TrajectoryObjectEncoder(n_features=n_features, trajectory_length=trajectory_length)
-        self._attention = MultiHeadAttention(in_features=128, head_num=8, activation=nn.ReLU())
-        self._linear = nn.Linear(in_features=256, out_features=128)
+        self._attention = MultiHeadAttention(in_features=64, head_num=4, activation=nn.ReLU())
+        self._linear = nn.Linear(in_features=128, out_features=128)
         self._lrelu = nn.LeakyReLU(0.3)
 
 
@@ -146,7 +142,7 @@ def test():
     trajectory = torch.randn(4, 20, 3)
     traj_features = traj_encoder(trajectory)
 
-    expected_shape = (128, )
+    expected_shape = (64, )
     assert tuple(traj_features.shape[1:]) == expected_shape, f'{expected_shape} != {traj_features.shape[1:]}'
 
     # test full trajectory encoder
