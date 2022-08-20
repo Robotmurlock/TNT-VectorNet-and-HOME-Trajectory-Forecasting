@@ -65,7 +65,7 @@ def run(config: configparser.GlobalConfig):
         callbacks=[
             ModelCheckpoint(
                 dirpath=model_storage_path,
-                monitor='min_fde_val',
+                monitor='e2e/min_fde',
                 save_last=True,
                 save_top_k=1
             )

@@ -109,7 +109,7 @@ class LiteTNTLoss(nn.Module):
 
 
 def main():
-    torch.set_printoptions(precision=2, sci_mode=False)
+    torch.set_printoptions(precision=13, sci_mode=False)
 
     # Test targets loss
     t_criteria = TargetsLoss()

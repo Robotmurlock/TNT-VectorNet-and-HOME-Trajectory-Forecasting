@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import torch
 from pytorch_lightning import LightningModule
 
@@ -46,15 +46,18 @@ class TargetDrivenForecaster(LightningModule):
 
         # logging
         self._log_history = {
-            'training_loss': [],
-            'training_tg_confidence_loss': [],
-            'training_tg_huber_loss': [],
-            'training_tf_huber_loss': [],
-            'training_tf_confidence_loss': [],
-            'val_loss': [],
-            'end_to_end_val_loss': [],
-            'min_ade_val': [],
-            'min_fde_val': []
+            'train/loss': [],
+            'train/tg_confidence_loss': [],
+            'train/tg_huber_loss': [],
+            'train/tf_huber_loss': [],
+            'train/tf_confidence_loss': [],
+            'val/loss': [],
+            'val/tg_confidence_loss': [],
+            'val/tg_huber_loss': [],
+            'val/tf_huber_loss': [],
+            'val/tf_confidence_loss': [],
+            'e2e/min_ade': [],
+            'e2e/min_fde': []
         }
 
     def _filter_targets(
@@ -137,9 +140,8 @@ class TargetDrivenForecaster(LightningModule):
             'traj_scores': filtered_traj_scores
         }
 
-    def training_step(self, batch, tb_log: bool = True, *args, **kwargs) -> dict:
-        polylines, anchors, ground_truth, gt_traj = batch
-
+    def forward_backward_step(self, polylines: torch.Tensor, anchors: torch.Tensor, ground_truth: torch.Tensor, gt_traj: torch.Tensor) \
+            -> Tuple[torch.Tensor, ...]:
         # Generate targets from anchors
         features, offsets, confidences = self._target_generator(polylines, anchors)
 
@@ -152,38 +154,31 @@ class TargetDrivenForecaster(LightningModule):
             n_batches=features.shape[0],
             anchors=anchors,
             target_confidences=confidences,
-            targets=anchors+offsets,
+            targets=anchors + offsets,
             offsets=offsets
         )
         forecasted_trajectories = self._trajectory_forecaster(features, filtered_targets)
         traj_conf = self._trajectory_scorer(features, forecasted_trajectories)
 
-        loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_bce_loss = \
-            self._loss(anchors, offsets, confidences, ground_truth, forecasted_trajectories_gt_end_point, traj_conf, gt_traj)
+        return self._loss(anchors, offsets, confidences, ground_truth, forecasted_trajectories_gt_end_point, traj_conf, gt_traj)
 
-        if tb_log:
-            self._log_history['training_loss'].append(loss)
-            self._log_history['training_tg_confidence_loss'].append(tg_ce_loss)
-            self._log_history['training_tg_huber_loss'].append(tg_huber_loss)
-            self._log_history['training_tf_huber_loss'].append(tf_huber_loss)
-            self._log_history['training_tf_confidence_loss'].append(tf_bce_loss)
-        return loss
+    def training_step(self, batch, *args, **kwargs) -> dict:
+        polylines, anchors, ground_truth, gt_traj = batch
+
+        loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_bce_loss = self.forward_backward_step(polylines, anchors, ground_truth, gt_traj)
+
+        self._log_history['train/loss'].append(loss)
+        self._log_history['train/tg_confidence_loss'].append(tg_ce_loss)
+        self._log_history['train/tg_huber_loss'].append(tg_huber_loss)
+        self._log_history['train/tf_huber_loss'].append(tf_huber_loss)
+        self._log_history['train/tf_confidence_loss'].append(tf_bce_loss)
+
+        return {'loss': loss}
 
     @torch.no_grad()
     def validation_step(self, batch, *args, **kwargs) -> dict:
         polylines, anchors, ground_truth, gt_traj = batch
         outputs = self(polylines, anchors)
-
-        # e2e loss
-        e2e_val_loss, _, _, _, _ = self._loss(
-            anchors=outputs['all_anchors'],
-            offsets=outputs['all_offsets'],
-            confidences=outputs['all_target_confidences'],
-            ground_truth=ground_truth,
-            forecasts=outputs['all_forecasts'],
-            traj_conf=outputs['all_forecast_scores'],
-            gt_traj=gt_traj
-        )
 
         # e2e metrics
         normalized_forecasts = outputs['forecasts'].cumsum(axis=1) * self._traj_scale
@@ -192,14 +187,18 @@ class TargetDrivenForecaster(LightningModule):
         min_ade, _ = metrics.minADE(normalized_forecasts, expanded_gt_traj_normalized)
         min_fde, _ = metrics.minFDE(normalized_forecasts, expanded_gt_traj_normalized)
 
-        self._log_history['end_to_end_val_loss'].append(e2e_val_loss)
-        self._log_history['min_ade_val'].append(min_ade)
-        self._log_history['min_fde_val'].append(min_fde)
+        self._log_history['e2e/min_ade'].append(min_ade)
+        self._log_history['e2e/min_fde'].append(min_fde)
 
-        loss = self.training_step(batch, tb_log=False)
-        self._log_history['val_loss'].append(loss)
+        loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_bce_loss = self.forward_backward_step(polylines, anchors, ground_truth, gt_traj)
 
-        return loss
+        self._log_history['val/loss'].append(loss)
+        self._log_history['val/tg_confidence_loss'].append(tg_ce_loss)
+        self._log_history['val/tg_huber_loss'].append(tg_huber_loss)
+        self._log_history['val/tf_huber_loss'].append(tf_huber_loss)
+        self._log_history['val/tf_confidence_loss'].append(tf_bce_loss)
+
+        return {'val_loss': loss}
 
     def on_validation_epoch_end(self, *args, **kwargs) -> None:
         for log_name, sample in self._log_history.items():
