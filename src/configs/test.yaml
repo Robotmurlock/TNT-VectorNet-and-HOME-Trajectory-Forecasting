@@ -46,6 +46,7 @@ raster:
     batch_size: 16
     n_workers: 8
     epochs: 30
+    augmentation: True
     input_path: 'x'
     output_path: 'y'
 graph:
