@@ -58,16 +58,8 @@ def minFDE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.T
         return torch.mean(fde[min_fde_index]), min_fde_index
     elif len(fde.shape) == 2:
         # batched
-        n_batches = fde.shape[0]
-        min_fde_indices = []
-        min_fde_values = []
-        for batch_index in range(n_batches):
-            min_fde_index = torch.argmin(fde[batch_index, :])
-            min_fde = fde[batch_index, min_fde_index]
-            min_fde_indices.append(min_fde_index)
-            min_fde_values.append(min_fde)
-
-        return torch.mean(torch.stack(min_fde_values)), torch.tensor(min_fde_indices, dtype=torch.long)
+        min_fde_value, min_fde_index = torch.min(fde, dim=-1)
+        return torch.mean(min_fde_value), min_fde_index
     else:
         raise ValueError(f'Invalid tensor shape: {fde.shape}')
 
@@ -85,7 +77,9 @@ def minADE(forecasts: torch.Tensor, ground_truth: torch.Tensor) -> Tuple[torch.T
     _, min_fde_index = minFDE(forecasts, ground_truth)
     ade = torch.mean(torch.sqrt((forecasts[..., 0] - ground_truth[..., 0]) ** 2 + (forecasts[..., 1] - ground_truth[..., 1]) ** 2), dim=-1)
     if len(ade.shape) == 1:
+        # normal
         return ade[min_fde_index], min_fde_index
+        # bached
     elif len(ade.shape) == 2:
         return torch.mean(torch.stack([ade[batch_index, min_fde_index[batch_index]] for batch_index in range(ade.shape[0])])), min_fde_index
     else:

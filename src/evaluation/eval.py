@@ -70,9 +70,10 @@ def evaluate(
                 traj_conf=outputs['all_forecast_scores'],
                 gt_traj=gt_traj)
 
+            torch.set_printoptions(precision=2, sci_mode=False)
             forecasts, targets, anchors, all_forecasts = \
-                outputs['forecasts'][0], outputs['targets'][0], outputs['anchors'][0], outputs['all_forecasts'][0]
-            forecasts = forecasts.cumsum(axis=1)  # transform differences to trajectory
+                outputs['forecasts'], outputs['targets'][0], outputs['anchors'][0], outputs['all_forecasts'][0]
+            forecasts = forecasts.cumsum(axis=2)  # transform differences to trajectory
             all_forecasts = all_forecasts.cumsum(axis=1)  # transform differences to trajectory
             gt_traj = gt_traj.cumsum(axis=1)  # transform differences to trajectory
             forecasts_scaled = forecasts * scale
@@ -125,8 +126,8 @@ def evaluate(
                 fig = scenario.visualize(
                     fig=fig,
                     chosen_anchors=anchors.cpu().numpy(),
-                    agent_traj_forecast=forecasts.cpu().numpy().copy(),
-                    all_agent_traj_forecast=all_forecasts.cpu().numpy().copy(),
+                    agent_traj_forecast=forecasts[0].cpu().numpy().copy(),
+                    all_agent_traj_forecast=all_forecasts[0].cpu().numpy().copy(),
                     targets_prediction=targets.cpu().numpy(),
                     scale=scale,
                     visualize_anchors=True,
