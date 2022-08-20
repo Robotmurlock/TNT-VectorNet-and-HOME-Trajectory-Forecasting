@@ -60,9 +60,6 @@ graph:
       tf_sched_step: 10
       tf_sched_gamma: 0.1
       huber_delta: 0.20
-model:
-  name: 'constant_velocity'
-  config_path: 'configs/model_config.yaml'
 evaluation:
   input_path: '../../data/internal_graph'
   output_path: '../../data/result'

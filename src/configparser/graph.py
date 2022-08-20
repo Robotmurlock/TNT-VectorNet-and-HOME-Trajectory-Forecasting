@@ -41,10 +41,13 @@ class GraphTrainConfigParameters:
 class GraphTrainConfig:
     train_input_path: str
     val_input_path: str
-    output_path: str
+    model_name: str
     parameters: GraphTrainConfigParameters
     visualize: bool
     n_workers: int
+
+    resume: bool = field(default=True)
+    starting_checkpoint_name: str = field(default='last.ckpt')
 
 
 @dataclass

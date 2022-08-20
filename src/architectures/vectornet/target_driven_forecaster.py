@@ -18,6 +18,7 @@ class TargetDrivenForecaster(LightningModule):
         n_targets: int,
         n_trajectories: int,
         use_traj_scoring: bool = True,
+        traj_scale: float = 1.0,
 
         train_config: Optional[GraphTrainConfigParameters] = None
     ):
@@ -39,6 +40,9 @@ class TargetDrivenForecaster(LightningModule):
 
         # training
         self._train_config = train_config
+
+        # evaluation
+        self._traj_scale = traj_scale
 
         # logging
         self._log_history = {
@@ -133,7 +137,7 @@ class TargetDrivenForecaster(LightningModule):
             'traj_scores': filtered_traj_scores
         }
 
-    def training_step(self, batch, *args, **kwargs) -> dict:
+    def training_step(self, batch, tb_log: bool = True, *args, **kwargs) -> dict:
         polylines, anchors, ground_truth, gt_traj = batch
 
         # Generate targets from anchors
@@ -157,11 +161,12 @@ class TargetDrivenForecaster(LightningModule):
         loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_bce_loss = \
             self._loss(anchors, offsets, confidences, ground_truth, forecasted_trajectories_gt_end_point, traj_conf, gt_traj)
 
-        self._log_history['training_loss'].append(loss)
-        self._log_history['training_tg_confidence_loss'].append(tg_ce_loss)
-        self._log_history['training_tg_huber_loss'].append(tg_huber_loss)
-        self._log_history['training_tf_huber_loss'].append(tf_huber_loss)
-        self._log_history['training_tf_confidence_loss'].append(tf_bce_loss)
+        if tb_log:
+            self._log_history['training_loss'].append(loss)
+            self._log_history['training_tg_confidence_loss'].append(tg_ce_loss)
+            self._log_history['training_tg_huber_loss'].append(tg_huber_loss)
+            self._log_history['training_tf_huber_loss'].append(tf_huber_loss)
+            self._log_history['training_tf_confidence_loss'].append(tf_bce_loss)
         return loss
 
     @torch.no_grad()
@@ -181,22 +186,26 @@ class TargetDrivenForecaster(LightningModule):
         )
 
         # e2e metrics
-        expanded_ground_truth = gt_traj.unsqueeze(1).repeat(1, self._n_trajectories, 1, 1)
-        min_ade, _ = metrics.minADE(outputs['forecasts'], expanded_ground_truth)
-        min_fde, _ = metrics.minFDE(outputs['forecasts'], expanded_ground_truth)
+        normalized_forecasts = outputs['forecasts'].cumsum(axis=1) * self._traj_scale
+        gt_traj_normalized = gt_traj.cumsum(axis=1) * self._traj_scale
+        expanded_gt_traj_normalized = gt_traj_normalized.unsqueeze(1).repeat(1, self._n_trajectories, 1, 1)
+        min_ade, _ = metrics.minADE(normalized_forecasts, expanded_gt_traj_normalized)
+        min_fde, _ = metrics.minFDE(normalized_forecasts, expanded_gt_traj_normalized)
 
         self._log_history['end_to_end_val_loss'].append(e2e_val_loss)
         self._log_history['min_ade_val'].append(min_ade)
         self._log_history['min_fde_val'].append(min_fde)
 
-        # FIXME: validation is logged into training loss :'(
-        loss = self.training_step(batch, *args, **kwargs)
+        loss = self.training_step(batch, tb_log=False)
         self._log_history['val_loss'].append(loss)
 
         return loss
 
     def on_validation_epoch_end(self, *args, **kwargs) -> None:
         for log_name, sample in self._log_history.items():
+            if len(sample) == 0:
+                continue
+
             self.log(log_name, sum(sample) / len(sample), prog_bar=True)
             self._log_history[log_name] = []
 

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import yaml
 import dacite
 from typing import Optional, List
@@ -44,16 +44,9 @@ class DataProcessConfig:
 
 
 @dataclass
-class ModelConfig:
-    name: str
-    config_path: str
-
-
-@dataclass
 class EvaluationConfig:
     input_path: str
     output_path: str
-    model_path: str
     visualize: bool
 
 
@@ -61,19 +54,16 @@ class EvaluationConfig:
 class GlobalConfig:
     log: LoggerConfig
     global_parameters: GlobalParametersConfig
-    global_path: Optional[str]
     data_process: DataProcessConfig
-    model: ModelConfig
     evaluation: EvaluationConfig
-
     raster: Optional[RasterConfig]
     graph: Optional[GraphConfig]
 
+    global_path: Optional[str] = field(default=utils.steps.SOURCE_PATH)
+    model_storage_path: Optional[str] = field(default=utils.steps.MODEL_PATH)
+
     def __post_init__(self):
         self.configure_logging()
-
-        if self.global_path is None:
-            self.global_path = utils.steps.SOURCE_PATH
 
     def configure_logging(self) -> None:
         """
