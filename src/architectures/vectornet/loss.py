@@ -96,13 +96,14 @@ class LiteTNTLoss(nn.Module):
         offsets: torch.Tensor,
         confidences: torch.Tensor,
         ground_truth: torch.Tensor,
-        forecasts: torch.Tensor,
+        forecasted_trajectories_gt_end_point: torch.Tensor,
+        forecasted_trajectories: torch.Tensor,
         traj_conf: torch.Tensor,
         gt_traj: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         _, tg_ce_loss, tg_huber_loss = self._tg_loss(anchors, offsets, confidences, ground_truth)
-        tf_huber_loss = self._tf_loss(forecasts, gt_traj)
-        tf_conf_loss = self._tfs_loss(traj_conf, forecasts, gt_traj)
+        tf_huber_loss = self._tf_loss(forecasted_trajectories_gt_end_point, gt_traj)
+        tf_conf_loss = self._tfs_loss(traj_conf, forecasted_trajectories, gt_traj)
 
         total_loss = 0.1*tg_ce_loss + 0.1*tg_huber_loss + 1.0*tf_huber_loss + self._traj_scoring_lambda*tf_conf_loss
         return total_loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_conf_loss

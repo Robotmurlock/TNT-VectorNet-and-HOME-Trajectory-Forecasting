@@ -160,7 +160,16 @@ class TargetDrivenForecaster(LightningModule):
         forecasted_trajectories = self._trajectory_forecaster(features, filtered_targets)
         traj_conf = self._trajectory_scorer(features, forecasted_trajectories)
 
-        return self._loss(anchors, offsets, confidences, ground_truth, forecasted_trajectories_gt_end_point, traj_conf, gt_traj)
+        return self._loss(
+            anchors=anchors,
+            offsets=offsets,
+            confidences=confidences,
+            ground_truth=ground_truth,
+            forecasted_trajectories_gt_end_point=forecasted_trajectories_gt_end_point,
+            forecasted_trajectories=forecasted_trajectories,
+            traj_conf=traj_conf,
+            gt_traj=gt_traj
+        )
 
     def training_step(self, batch, *args, **kwargs) -> dict:
         polylines, anchors, ground_truth, gt_traj = batch
@@ -178,18 +187,11 @@ class TargetDrivenForecaster(LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, *args, **kwargs) -> dict:
         polylines, anchors, ground_truth, gt_traj = batch
+        self.eval()
         outputs = self(polylines, anchors)
+        self.train()
 
-        # e2e metrics
-        normalized_forecasts = outputs['forecasts'].cumsum(axis=1) * self._traj_scale
-        gt_traj_normalized = gt_traj.cumsum(axis=1) * self._traj_scale
-        expanded_gt_traj_normalized = gt_traj_normalized.unsqueeze(1).repeat(1, self._n_trajectories, 1, 1)
-        min_ade, _ = metrics.minADE(normalized_forecasts, expanded_gt_traj_normalized)
-        min_fde, _ = metrics.minFDE(normalized_forecasts, expanded_gt_traj_normalized)
-
-        self._log_history['e2e/min_ade'].append(min_ade)
-        self._log_history['e2e/min_fde'].append(min_fde)
-
+        # loss info
         loss, tg_ce_loss, tg_huber_loss, tf_huber_loss, tf_bce_loss = self.forward_backward_step(polylines, anchors, ground_truth, gt_traj)
 
         self._log_history['val/loss'].append(loss)
@@ -197,6 +199,16 @@ class TargetDrivenForecaster(LightningModule):
         self._log_history['val/tg_huber_loss'].append(tg_huber_loss)
         self._log_history['val/tf_huber_loss'].append(tf_huber_loss)
         self._log_history['val/tf_confidence_loss'].append(tf_bce_loss)
+
+        # e2e metrics
+        normalized_forecasts = outputs['forecasts'].cumsum(axis=1) * self._traj_scale
+        gt_traj_normalized = gt_traj.cumsum(axis=2) * self._traj_scale
+        expanded_gt_traj_normalized = gt_traj_normalized.unsqueeze(1).repeat(1, self._n_trajectories, 1, 1)
+        min_ade, _ = metrics.minADE(normalized_forecasts, expanded_gt_traj_normalized)
+        min_fde, _ = metrics.minFDE(normalized_forecasts, expanded_gt_traj_normalized)
+
+        self._log_history['e2e/min_ade'].append(min_ade)
+        self._log_history['e2e/min_fde'].append(min_fde)
 
         return {'val_loss': loss}
 
