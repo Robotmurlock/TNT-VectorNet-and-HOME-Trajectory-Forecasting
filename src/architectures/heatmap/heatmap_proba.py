@@ -77,7 +77,6 @@ class TrajectoryAttentionEncoder(nn.Module):
         self._linear = nn.Linear(in_features=128, out_features=128)
         self._lrelu = nn.LeakyReLU(0.3)
 
-
     def forward(self, agent_hist: torch.Tensor, objects_hist: torch.Tensor) -> torch.Tensor:
         # trajectory encoding
         batch_size, n_objects = objects_hist.shape[:2]

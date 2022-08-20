@@ -4,10 +4,10 @@ global_parameters:
   trajectory_history_window_length: 20
   trajectory_future_window_length: 30
 data_process:
-  input_path: 'test_data/dataset'
+  input_path: 'test_data/sample-test'
   output_path: 'test_data/internal'
   n_processes: 1
-  visualize: False
+  visualize: True
   parameters:
     trajectory_min_history_window_length: 5
     object_trajectory_min_history_window_length: 5
@@ -64,12 +64,12 @@ graph:
   train:
     train_input_path: 'test_data/internal_graph/train'
     val_input_path: 'test_data/internal_graph/val'
-    model_name: 'vectornet-old'
-    visualize: False
+    model_name: 'vectornet-testset-another'
+    visualize: True
     n_workers: 8
     resume: True
     parameters:
-      epochs: 100
+      epochs: 300
       n_targets: 6
       n_trajectories: 6
       batch_size: 8
