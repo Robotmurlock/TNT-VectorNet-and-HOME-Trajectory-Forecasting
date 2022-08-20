@@ -63,12 +63,13 @@ graph:
   train:
     train_input_path: 'test_data/internal_graph/train'
     val_input_path: 'test_data/internal_graph/val'
-    output_path: 'model_storage/vectornet'
-    visualize: True
+    model_name: 'vectornet-old'
+    visualize: False
     n_workers: 8
+    resume: True
     parameters:
-      epochs: 60
-      n_targets: 12
+      epochs: 100
+      n_targets: 6
       n_trajectories: 6
       batch_size: 8
       tg_lr: 0.01
@@ -78,12 +79,8 @@ graph:
       tf_sched_step: 50
       tf_sched_gamma: 0.1
       huber_delta: 0.04
-      use_traj_scoring: True
-model:
-  name: 'vectornet'
-  config_path: 'configs/model_config.yaml'
+      use_traj_scoring: False
 evaluation:
   input_path: 'test_data/internal_graph'
   output_path: 'test_data/result'
-  model_path: 'model_storage/vectornet'
   visualize: True

@@ -73,7 +73,7 @@ def evaluate(
                 outputs['forecasts'][0], outputs['targets'][0], outputs['anchors'][0], outputs['all_forecasts'][0]
             forecasts = forecasts.cumsum(axis=1)  # transform differences to trajectory
             all_forecasts = all_forecasts.cumsum(axis=1)  # transform differences to trajectory
-            gt_traj = gt_traj[0].cumsum(axis=0)  # transform differences to trajectory
+            gt_traj = gt_traj.cumsum(axis=1)  # transform differences to trajectory
             forecasts_scaled = forecasts * scale
             gt_traj_scaled = gt_traj * scale
 

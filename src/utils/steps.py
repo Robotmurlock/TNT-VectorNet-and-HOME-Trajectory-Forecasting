@@ -3,6 +3,7 @@ import os
 
 
 SOURCE_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+MODEL_PATH = os.path.join(SOURCE_PATH, 'model_storage')
 
 
 def get_config_path() -> str:

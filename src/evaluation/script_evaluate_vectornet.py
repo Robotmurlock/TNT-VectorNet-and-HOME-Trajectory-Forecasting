@@ -9,8 +9,11 @@ import conventions
 
 
 def run(config: configparser.GlobalConfig):
+    vectornet_model_storage_path = os.path.join(config.model_storage_path, 'vectornet')
+    model_storage_path = os.path.join(vectornet_model_storage_path, config.graph.train.model_name)
+
     model = TargetDrivenForecaster.load_from_checkpoint(
-        checkpoint_path=os.path.join(config.global_path, config.evaluation.model_path, 'last.ckpt'),
+        checkpoint_path=os.path.join(model_storage_path, 'last.ckpt'),
         cluster_size=20,
         trajectory_length=config.global_parameters.trajectory_future_window_length,
         polyline_features=14,
