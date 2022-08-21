@@ -28,8 +28,8 @@ class RasterScenarioData:
         self.agent_traj_gt[:, 0] *= -1
         self.objects_traj_hists[:, :, 0] *= -1
         self.objects_traj_gts[:, :, 0] *= -1
-        self.raster_features = np.flip(self.raster_features, axis=2)
-        self.heatmap = np.flip(self.heatmap, axis=1)
+        self.raster_features = np.flip(self.raster_features, axis=2).copy()
+        self.heatmap = np.flip(self.heatmap, axis=1).copy()
 
     @property
     def ground_truth_trajectory_difference(self) -> torch.Tensor:

@@ -42,12 +42,12 @@ class HeatmapTrajectoryForecaster(nn.Module):
             'heatmap': heatmap
         }
 
-    def load_weights(self, heatmap_estimator_path: str, trajectory_forecater_path: str) -> None:
+    def load_weights(self, heatmap_estimator_path: str, trajectory_forecaster_path: str) -> None:
         self._heatmap_estimator.load_state_dict(torch.load(heatmap_estimator_path))
 
         # FIXME
         self._forecaster = LightningTrajectoryForecaster.load_from_checkpoint(
-            checkpoint_path=trajectory_forecater_path,
+            checkpoint_path=trajectory_forecaster_path,
             traj_features=self._traj_features,
             traj_length=self._traj_length,
             train_config=None,

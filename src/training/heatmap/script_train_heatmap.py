@@ -3,14 +3,14 @@ import os
 import configparser
 from utils import steps
 from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDatasetTorchWrapper
-from architectures.heatmap.heatmap_proba import HeatmapModel
-from architectures.heatmap.loss import PixelFocalLoss
+from architectures.heatmap.heatmap_proba import LightningHeatmapModel
 from pathlib import Path
-from tqdm import tqdm
 from typing import Any
+from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from torch.utils.data import DataLoader
-from torch import optim
 import torch
 import torch.nn as nn
 import logging
@@ -76,49 +76,52 @@ def eval_epoch(
 
 
 def run(config: configparser.GlobalConfig):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # TODO: Move to config
-    logging.info(f'Training on `{device}` device')
+    train_config = config.raster.train_heatmap
+    parameters = train_config.parameters
 
-    parameters = config.raster.train_heatmap
+    vectornet_model_storage_path = os.path.join(config.model_storage_path, 'home', 'heatmap_targets')
+    model_storage_path = os.path.join(vectornet_model_storage_path, train_config.model_name)
+    checkpoint_path = os.path.join(model_storage_path, train_config.starting_checkpoint_name)
+
     train_dataset = HeatmapOutputRasterScenarioDatasetTorchWrapper(config, 'train')
-    train_data_loader = DataLoader(
-        dataset=train_dataset,
-        batch_size=parameters.batch_size,
-        num_workers=parameters.n_workers
-    )
+    train_loader = DataLoader(train_dataset, batch_size=parameters.batch_size, num_workers=train_config.n_workers)
     val_dataset = HeatmapOutputRasterScenarioDatasetTorchWrapper(config, 'val')
-    val_data_loader = DataLoader(val_dataset, batch_size=parameters.batch_size, num_workers=parameters.n_workers)
+    val_loader = DataLoader(val_dataset, batch_size=parameters.batch_size, num_workers=train_config.n_workers)
 
-    model = HeatmapModel(
+    model = LightningHeatmapModel(
         encoder_input_shape=(9, 224, 224),
         decoder_input_shape=(512, 14, 14),
         traj_features=3,
-        traj_length=config.global_parameters.trajectory_history_window_length
-    ).to(device)
-    criteria = PixelFocalLoss().to(device)
-    optimizer = optim.Adam(params=model.parameters(), lr=1e-3)
-    sched = optim.lr_scheduler.StepLR(optimizer, gamma=0.1, step_size=15)
-    epochs = parameters.epochs
+        traj_length=config.global_parameters.trajectory_history_window_length,
+        sampler_radius=parameters.sampler_radius,
+        sampler_targets=parameters.sampler_targets,
+        base_lr=parameters.base_lr,
+        sched_step=parameters.sched_step,
+        sched_gamma=parameters.sched_gamma
+    )
 
-    model.train()
-    for epoch in tqdm(range(1, epochs+1)):
-        train_epoch(
-            epoch=epoch,
-            data_loader=train_data_loader,
-            model=model,
-            criteria=criteria,
-            optimizer=optimizer,
-            sched=sched,
-            device=device,
-            global_path=config.global_path
-        )
-        eval_epoch(
-            epoch=epoch,
-            data_loader=val_data_loader,
-            model=model,
-            criteria=criteria,
-            device=device
-        )
+    tb_logger = TensorBoardLogger(vectornet_model_storage_path, name=train_config.model_name)
+    trainer = Trainer(
+        gpus=1,
+        accelerator='cuda',
+        max_epochs=parameters.epochs,
+        logger=tb_logger,
+        log_every_n_steps=1,
+        callbacks=[
+            ModelCheckpoint(
+                dirpath=model_storage_path,
+                monitor='e2e/min_fde',
+                save_last=True,
+                save_top_k=1
+            )
+        ],
+        resume_from_checkpoint=checkpoint_path if train_config.resume and os.path.exists(checkpoint_path) else None
+    )
+    trainer.fit(
+        model=model,
+        train_dataloaders=train_loader,
+        val_dataloaders=val_loader
+    )
 
 
 if __name__ == '__main__':
