@@ -108,7 +108,8 @@ class HeatmapModel(nn.Module):
         self._decoder = HeatmapOutputDecoder((decoder_input_shape[0] + 128, decoder_input_shape[1], decoder_input_shape[2]))
         self._trajectory_encoder = TrajectoryAttentionEncoder(traj_features, traj_length)
 
-        self._conv1 = CNNBlock(in_channels=encoder_input_shape[0]+32, out_channels=1, kernel_size=7, padding='same')
+        self._conv1 = CNNBlock(in_channels=encoder_input_shape[0]+32, out_channels=16, kernel_size=7, padding='same')
+        self._conv2 = CNNBlock(in_channels=16, out_channels=1, kernel_size=3, padding='same')
         self._sigmoid = nn.Sigmoid()
 
     def forward(self, raster: torch.Tensor, agent_hist: torch.Tensor, objects_hist: torch.Tensor) -> torch.Tensor:
@@ -121,7 +122,7 @@ class HeatmapModel(nn.Module):
 
         decoder_output = self._decoder(features)
         merged_output = torch.concat([decoder_output, raster], dim=1)  # skip connection
-        final_output = self._sigmoid(self._conv1(merged_output))
+        final_output = self._sigmoid(self._conv2(self._conv1(merged_output)))
         return final_output
 
 

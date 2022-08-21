@@ -68,10 +68,11 @@ class ForecastingScoringLoss(nn.Module):
 
     def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
-        distances = torch.mean(
-            torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
-            + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2), dim=-1
-        )
+        distances = torch.max(torch.sqrt(
+                torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
+                + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2)
+            ), dim=-1
+        )[0]
         closest_target_index = torch.argmin(distances, dim=-1)
         closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
 
