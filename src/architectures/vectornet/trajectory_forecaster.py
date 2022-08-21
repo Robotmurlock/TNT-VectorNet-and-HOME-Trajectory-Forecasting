@@ -4,6 +4,13 @@ import torch.nn as nn
 
 class TrajectoryForecaster(nn.Module):
     def __init__(self, n_features: int, trajectory_length: int):
+        """
+        Estimates trajectory given end point and VectorNet features
+
+        Args:
+            n_features: Vectornet features dimension
+            trajectory_length: Output trajectory length
+        """
         super(TrajectoryForecaster, self).__init__()
         self._n_features = n_features
         self._trajectory_length = trajectory_length

@@ -1,3 +1,6 @@
+"""
+Basic 2D CNN building blocks
+"""
 from typing import Tuple, Union
 import torch.nn as nn
 import torch
@@ -17,6 +20,18 @@ class CNNBlock(nn.Module):
         activate_relu: bool = True,
         **kwargs
     ):
+        """
+        Convolutional 2D layer combiner with 2d batch norm
+
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            kernel_size: Kernel size
+            stride: Stride
+            padding: Padding
+            activate_relu: Use ReLU as activation function
+            **kwargs:
+        """
         super(CNNBlock, self).__init__()
         self._conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False, **kwargs)
         self._batchnorm = nn.BatchNorm2d(out_channels)
@@ -42,6 +57,18 @@ class TransposeCNNBlock(nn.Module):
         activate_relu: bool = True,
         **kwargs
     ):
+        """
+        Transpose convolutional 2D layer combined with 2D batch norm
+
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            kernel_size: Kernel size
+            stride: Stride
+            padding: Padding
+            output_padding: Output padding
+            activate_relu: Use ReLU as activation function
+        """
         super(TransposeCNNBlock, self).__init__()
         self._conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding, output_padding, bias=False, **kwargs)
         self._batchnorm = nn.BatchNorm2d(out_channels)

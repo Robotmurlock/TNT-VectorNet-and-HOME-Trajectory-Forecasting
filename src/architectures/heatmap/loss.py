@@ -4,6 +4,9 @@ import torch.nn as nn
 
 class PixelFocalLoss(nn.Module):
     def __init__(self):
+        """
+        PixelFocalLoss: https://arxiv.org/pdf/1904.07850.pdf
+        """
         super(PixelFocalLoss, self).__init__()
 
     def forward(self, pred_heatmap: torch.Tensor, true_heatmap: torch.Tensor, da_area: torch.Tensor) -> torch.Tensor:

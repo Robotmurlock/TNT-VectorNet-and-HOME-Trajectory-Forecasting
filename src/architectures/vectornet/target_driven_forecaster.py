@@ -22,6 +22,19 @@ class TargetDrivenForecaster(LightningModule):
 
         train_config: Optional[GraphTrainConfigParameters] = None
     ):
+        """
+        TNT-Vectornet
+
+        Args:
+            cluster_size: Polyline length
+            trajectory_length: Output trajectory length
+            polyline_features: Number of feagures for polyline node
+            n_targets: Number of targets to filter using target generator
+            n_trajectories: Number of trajectories to filter after target sampling and trajectory estimation
+            use_traj_scoring: Use trajectory scoring (is fale then n_targets == n_trajectories)
+            traj_scale: Normalization parameter for trajectory scaling
+            train_config: Train configuration (only for training)
+        """
         super(TargetDrivenForecaster, self).__init__()
 
         # model and loss
@@ -62,14 +75,26 @@ class TargetDrivenForecaster(LightningModule):
 
     def _filter_targets(
         self,
-        n_batches: int,
+        batch_size: int,
         target_confidences: torch.Tensor,
         anchors: torch.Tensor,
         offsets: torch.Tensor,
         targets: torch.Tensor
     ):
+        """
+        Filters `self.n_targets` with highest confidence
+
+        Args:
+            batch_size: batch_size
+            target_confidences: Estimated confidence for each anchor
+            anchors: Sampler target end point without corrections
+            offsets: Anchor corrections
+            targets: anchors + offsets
+
+        Returns: Filtered `self.n_targets` targets by confidence
+        """
         batch_filtered_anchors, batch_filtered_offsets, batch_filtered_targets, batch_filtered_target_confidences = [], [], [], []
-        for batch_index in range(n_batches):
+        for batch_index in range(batch_size):
             # for each instance in batch: choose top N targets
             instance_filter_indexes = torch.argsort(target_confidences[batch_index], descending=True)[:self._n_targets]
             instance_filtered_anchors = anchors[batch_index, instance_filter_indexes]
@@ -98,7 +123,7 @@ class TargetDrivenForecaster(LightningModule):
         n_batches = features.shape[0]
 
         filtered_anchors, filtered_offsets, filtered_targets, filtered_confidences = self._filter_targets(
-            n_batches=n_batches,
+            batch_size=n_batches,
             anchors=anchors,
             target_confidences=target_confidences,
             targets=targets,
@@ -151,7 +176,7 @@ class TargetDrivenForecaster(LightningModule):
 
         # Forecast trajectories for predicted targets
         _, _, filtered_targets, _ = self._filter_targets(
-            n_batches=features.shape[0],
+            batch_size=features.shape[0],
             anchors=anchors,
             target_confidences=confidences,
             targets=anchors + offsets,

@@ -7,7 +7,7 @@ from typing import Tuple
 class TargetsLoss(nn.Module):
     def __init__(self, delta: float = 0.04):
         super(TargetsLoss, self).__init__()
-        self._bce = nn.BCELoss(reduction='none')
+        self._bce = nn.BCELoss(reduction='sum')
         self._huber = nn.HuberLoss(delta=delta, reduction='sum')
 
     def forward(self, anchors: torch.Tensor, offsets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) \
@@ -20,8 +20,8 @@ class TargetsLoss(nn.Module):
             Distance between the closest target point and ground truth point
 
         Args:
-            anchors: TODO
-            offsets: TODO
+            anchors: Sampled agent end points by heuristic
+            offsets: Anchor corrections
             confidences: Confidence (probability) for each target
             ground_truth: Ground truth target
 
@@ -36,7 +36,6 @@ class TargetsLoss(nn.Module):
         # confidence loss
         # ideally the closest target should have confidence 1 and all others should have 0
         ce_loss = self._bce(F.softmax(confidences, dim=-1), closest_target_index_onehot)
-        ce_loss = ce_loss.sum()
 
         # offsets loss
         closest_anchors = torch.stack([anchors[index, closest_target_index[index], :] for index in range(anchors.shape[0])])
@@ -53,6 +52,12 @@ class TargetsLoss(nn.Module):
 
 class ForecastingLoss(nn.Module):
     def __init__(self, delta: float = 0.04):
+        """
+        Trajectory estimation loss
+
+        Args:
+            delta: Huber loss parameter
+        """
         super(ForecastingLoss, self).__init__()
         self._huber = nn.HuberLoss(delta=delta, reduction='sum')
 
@@ -63,8 +68,11 @@ class ForecastingLoss(nn.Module):
 
 class ForecastingScoringLoss(nn.Module):
     def __init__(self):
+        """
+        Trajectory confidence estimation loss
+        """
         super(ForecastingScoringLoss, self).__init__()
-        self._bce = nn.BCELoss(reduction='none')
+        self._bce = nn.BCELoss(reduction='sum')
 
     def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
@@ -78,13 +86,22 @@ class ForecastingScoringLoss(nn.Module):
 
         # confidence loss
         # ideally the closest target should have confidence 1 and all others should have 0
-        ce_loss = self._bce(F.softmax(conf, dim=-1), closest_target_index_onehot)
-        ce_loss = ce_loss.sum()
-        return ce_loss
+        return self._bce(F.softmax(conf, dim=-1), closest_target_index_onehot)
 
 
 class LiteTNTLoss(nn.Module):
     def __init__(self, traj_scoring: bool = True, targets_delta: float = 0.04, forecasting_delta: float = 0.04):
+        """
+        Ensembled loss
+        - Target end point estimation loss (offsets + confidence)
+        - Trajectory estimation loss
+        - Trejectory confidence (score) estimation loss (optional)
+
+        Args:
+            traj_scoring: Use traj scoring (confidence estimation)
+            targets_delta: Target end point offsets huber loss parameter
+            forecasting_delta: Trajectory huber loss parameter
+        """
         super(LiteTNTLoss, self).__init__()
         self._traj_scoring_lambda = 0.1 if traj_scoring else 0.0
         self._tg_loss = TargetsLoss(delta=targets_delta)

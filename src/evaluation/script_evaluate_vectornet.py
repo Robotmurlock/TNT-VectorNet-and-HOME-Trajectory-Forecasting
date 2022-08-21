@@ -2,7 +2,7 @@ import os
 
 import configparser
 from utils import steps
-from evaluation import eval
+from evaluation import eval_vectornet
 from datasets.vectornet_dataset import GraphScenarioDataset
 from architectures.vectornet import TargetDrivenForecaster, LiteTNTLoss
 import conventions

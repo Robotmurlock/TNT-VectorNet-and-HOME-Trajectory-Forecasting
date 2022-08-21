@@ -7,6 +7,15 @@ from time import time
 
 class ModalitySampler(nn.Module):
     def __init__(self, n_targets: int, radius: int, device: Union[str, torch.device], swap_rc: bool = True):
+        """
+        Greedy algorithm to sample N targets from heatmap with the highest area probability
+
+        Args:
+            n_targets: Number of targets to sample
+            radius: Target radius to sum probality of heatmap
+            device: device
+            swap_rc: Swap coordinates axis in output
+        """
         super(ModalitySampler, self).__init__()
         self._n_targets = n_targets
         self._radius = radius
@@ -34,6 +43,7 @@ class ModalitySampler(nn.Module):
 
         return heatmap
 
+    @torch.no_grad()
     def forward(self, heatmap: torch.Tensor) -> torch.Tensor:
         batch_size = heatmap.shape[0]
         hm_all = heatmap.detach().cpu().numpy().copy()
@@ -70,6 +80,15 @@ class ModalitySampler(nn.Module):
 
 class TorchModalitySampler(nn.Module):
     def __init__(self, n_targets: int, radius: int, swap_rc: bool = True):
+        """
+        Greedy algorithm to sample N targets from heatmap with the highest area probability
+        (Optimized version of ModalitySampler - up to 50 times faster)
+
+        Args:
+            n_targets: Number of targets to sample
+            radius: Target radius to sum probality of heatmap
+            swap_rc: Swap coordinates axis in output
+        """
         super(TorchModalitySampler, self).__init__()
         self._n_targets = n_targets
         self._radius = radius
@@ -104,6 +123,13 @@ class TorchModalitySampler(nn.Module):
 
 class KMeansProbSampler(nn.Module):
     def __init__(self, n_targets: int, n_iterations: int):
+        """
+        FIXME: deprecated
+
+        Args:
+            n_targets:
+            n_iterations:
+        """
         super(KMeansProbSampler, self).__init__()
         self._n_targets = n_targets
         self._n_iterations = n_iterations
@@ -141,21 +167,19 @@ class KMeansProbSampler(nn.Module):
         return new_clusters
 
 
-def gaussian_fn(M, std):
-    n = torch.arange(0, M) - (M - 1.0) / 2.0
-    sig2 = 2 * std * std
-    w = torch.exp(-n ** 2 / sig2)
-    return w
-
-
-def gkern(kernlen=100, std=16):
-    """Returns a 2D Gaussian kernel array."""
-    gkern1d = gaussian_fn(kernlen, std=std)
-    gkern2d = torch.outer(gkern1d, gkern1d)
-    return gkern2d
-
-
 def test():
+    def gaussian_fn(M, std):
+        n = torch.arange(0, M) - (M - 1.0) / 2.0
+        sig2 = 2 * std * std
+        w = torch.exp(-n ** 2 / sig2)
+        return w
+
+    def gkern(kernlen=100, std=16):
+        """Returns a 2D Gaussian kernel array."""
+        gkern1d = gaussian_fn(kernlen, std=std)
+        gkern2d = torch.outer(gkern1d, gkern1d)
+        return gkern2d
+
     size = 100
     iterations = 1000
 

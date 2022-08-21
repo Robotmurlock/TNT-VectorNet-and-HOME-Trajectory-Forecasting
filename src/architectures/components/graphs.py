@@ -1,9 +1,19 @@
+"""
+Basic GNN building blocks
+"""
 import torch
 import torch.nn as nn
 
 
 class GCN(nn.Module):
     def __init__(self, in_features: int, hidden_features: int):
+        """
+        Simple Graph Convolutiol Neural Network
+
+        Args:
+            in_features: Dimension of input node features
+            hidden_features: Dimension of hidden node features
+        """
         super(GCN, self).__init__()
         self._feature_encoding = nn.Linear(in_features, hidden_features)
         self._layernorm = nn.LayerNorm([hidden_features])
@@ -12,9 +22,9 @@ class GCN(nn.Module):
     def forward(self, features: torch.Tensor, adj: torch.Tensor) -> torch.Tensor:
         enc = self._relu(self._layernorm(self._feature_encoding(features)))
         enc_flatten = enc.view(-1, *enc.shape[-2:])
-        expanded_laplacian = adj.view(1, *adj.shape) \
+        expanded_adj = adj.view(1, *adj.shape) \
             .expand(enc_flatten.shape[0], *adj.shape)
-        message_flatten = torch.bmm(expanded_laplacian, enc_flatten)
+        message_flatten = torch.bmm(expanded_adj, enc_flatten)
         message = message_flatten.view(enc.shape)
         return torch.concat([message, enc], dim=-1)
 

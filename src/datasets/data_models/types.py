@@ -1,3 +1,6 @@
+"""
+TODO: docstring
+"""
 import enum
 import numpy as np
 
@@ -12,6 +15,7 @@ class ObjectType(enum.Enum):
     @property
     def one_hot(self) -> np.ndarray:
         vector = np.zeros(shape=(len(ObjectType)), dtype=np.float32)
+        # noinspection PyTypeChecker
         vector[self.value-1] = 1.0
         return vector
 

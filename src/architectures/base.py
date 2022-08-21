@@ -6,6 +6,8 @@ from typing import Tuple
 class BaseModel(nn.Module):
     def __init__(self, trajectory_length: int):
         """
+        # FIXME: Deprecated
+
         Args:
             trajectory_length: Forecasted trajectory length
         """

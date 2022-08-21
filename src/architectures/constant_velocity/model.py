@@ -7,6 +7,8 @@ from architectures.base import BaseModel
 class ConstantVelocityModel(BaseModel):
     """
     Baseline model - Calculates average velocity and propagates it to generate forecast
+
+    FIXME: Deprecated
     """
     def __init__(self, *args, **kwargs):
         super(ConstantVelocityModel, self).__init__(*args, **kwargs)
