@@ -53,8 +53,8 @@ class TrajectoryScorer(nn.Module):
         out = self._lrelu(self._ln1(self._linear(inputs)))
         out = torch.concat([out, flatten_trajectories], dim=-1)  # skip connection
 
-        scores = self._sigmoid(self._l_trajectory_score(out))
-        scores = scores.view(*scores.shape[:-2], -1, 1).squeeze(-1)
+        out = self._l_trajectory_score(out)
+        scores = out.view(*out.shape[:-2], -1, 1).squeeze(-1)
         return scores
 
 
