@@ -207,6 +207,15 @@ class GraphPipeline(pipeline.Pipeline):
         visualize: bool = False,
         report=True
     ):
+        """
+        TODO
+
+        Args:
+            output_path:
+            config:
+            visualize:
+            report:
+        """
         super().__init__(output_path=output_path, visualize=visualize, report=report)
         self._config = config
         self._dpg_config = config.graph.data_process

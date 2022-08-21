@@ -8,7 +8,7 @@ from typing import List
 class VectorNet(nn.Module):
     def __init__(self, cluster_size: int, polyline_features: int):
         """
-        Extracts context from all polyline information
+        Extracts context from every polyline (trajectory)
 
         Args:
             polyline_features: Number of features per polyline point

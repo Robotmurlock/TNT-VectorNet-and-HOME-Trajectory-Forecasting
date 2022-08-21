@@ -8,6 +8,8 @@ from architectures.vectornet.target_driven_forecaster import TargetDrivenForecas
 
 class ModelType(enum.Enum):
     """
+    # FIXME: Deprecated
+
     Model type
     """
     CONSTANT_VELOCITY = 0

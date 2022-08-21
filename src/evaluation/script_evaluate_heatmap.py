@@ -5,7 +5,7 @@ from utils import steps
 from architectures.heatmap import HeatmapTrajectoryForecaster
 from architectures.heatmap.loss import PixelFocalLoss
 import conventions
-from evaluation import eval_tmp
+from evaluation import eval_home
 
 from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDataset
 
@@ -15,18 +15,18 @@ def run(config: configparser.GlobalConfig):
         encoder_input_shape=(9, 224, 224),
         decoder_input_shape=(512, 14, 14),
         traj_features=3,
-        traj_length=config.global_parameters.trajectory_history_window_length,
+        trajectory_history_window_length=config.global_parameters.trajectory_history_window_length,
+        trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
 
-        n_targets=6,
-        radius=2
-    )
-    model.load_weights(
-        heatmap_estimator_path=os.path.join(config.global_path, 'model_storage', 'heatmap_targets', 'last.ckpt'),
-        trajectory_forecater_path=os.path.join(config.global_path, 'model_storage', 'heatmap_tf', 'last.ckpt')
+        sampler_targets=6,
+        sampler_radius=2,
+
+        heatmap_estimator_path=os.path.join(config.global_path, 'model_storage', 'home', 'heatmap_targets', 'last.ckpt'),
+        trajectory_forecaster_path=os.path.join(config.global_path, 'model_storage', 'home', 'trajectory_estimation', 'last.ckpt')
     )
     model.eval()
 
-    outputs_path = os.path.join(config.global_path, 'test_data/raster_result')
+    outputs_path = os.path.join(config.global_path, 'raster_result')
     for split_name in conventions.SPLIT_NAMES:
         dataset_heatmap = HeatmapOutputRasterScenarioDataset(config, split=split_name)
         eval_tmp.evaluate(

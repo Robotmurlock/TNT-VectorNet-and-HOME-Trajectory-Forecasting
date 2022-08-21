@@ -1,5 +1,5 @@
 from architectures.heatmap.loss import PixelFocalLoss
-from architectures.heatmap.heatmap_proba import HeatmapModel
+from architectures.heatmap.heatmap_proba import HeatmapModel, LightningHeatmapModel
 from architectures.heatmap.trajectory_forecaster import LightningTrajectoryForecaster, TrajectoryForecaster
 from architectures.heatmap.sampler import TorchModalitySampler
 from architectures.heatmap.end_to_end import HeatmapTrajectoryForecaster

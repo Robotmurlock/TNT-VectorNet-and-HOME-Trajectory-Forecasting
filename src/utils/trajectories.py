@@ -13,6 +13,17 @@ class PadType(enum.Enum):
 
 
 def pad_trajectory(traj: np.ndarray, length: int, pad_type: PadType) -> Tuple[np.ndarray, int]:
+    """
+    TODO
+
+    Args:
+        traj:
+        length:
+        pad_type:
+
+    Returns:
+
+    """
     n_missing_points = length - traj.shape[0]
 
     if pad_type == PadType.PAST:
@@ -153,10 +164,27 @@ def sample_velocities(
 
 
 def calc_angle_to_y_axis(point: np.ndarray) -> float:
+    """
+    TODO
+    Args:
+        point:
+
+    Returns:
+
+    """
     return np.pi / 2 - np.arctan2(point[1], point[0])
 
 
 def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
+    """
+    TODO
+    Args:
+        points:
+        angle:
+
+    Returns:
+
+    """
     rotmat = np.array([
         [np.cos(angle), -np.sin(angle)],
         [np.sin(angle), np.cos(angle)]

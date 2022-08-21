@@ -1,6 +1,7 @@
 # Custom
 *.txt
 !requirements.txt
+**/emain.yaml
 
 # Project
 data

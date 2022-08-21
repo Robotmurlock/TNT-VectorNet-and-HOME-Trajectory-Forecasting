@@ -1,3 +1,6 @@
+"""
+Basic Attention building blocks
+"""
 import torch
 import torch.nn as nn
 import math

@@ -4,12 +4,18 @@ from architectures.heatmap.sampler import TorchModalitySampler
 
 import torch
 import torch.nn as nn
-from typing import Tuple
+from typing import Tuple, Optional
 from pytorch_lightning import LightningModule
 
 
 class RasterEncoder(nn.Module):
     def __init__(self, input_shape: Tuple[int, int, int]):
+        """
+        Encodes rasterized HD map features
+
+        Args:
+            input_shape: Raster input shape
+        """
         super(RasterEncoder, self).__init__()
         self._input_shape = input_shape
 
@@ -34,6 +40,12 @@ class RasterEncoder(nn.Module):
 
 class HeatmapOutputDecoder(nn.Module):
     def __init__(self, input_shape: Tuple[int, int, int]):
+        """
+        Estimates probabilities in form of a heatmap for agent end points
+
+        Args:
+            input_shape: Input shape
+        """
         super(HeatmapOutputDecoder, self).__init__()
         self._input_shape = input_shape
 
@@ -55,6 +67,13 @@ class HeatmapOutputDecoder(nn.Module):
 
 class TrajectoryObjectEncoder(nn.Module):
     def __init__(self, n_features: int, trajectory_length: int):
+        """
+        Encodes object trajectory
+
+        Args:
+            n_features: Trajectory node features dimension
+            trajectory_length: Trajectory length
+        """
         super(TrajectoryObjectEncoder, self).__init__()
         self._lstm1 = nn.LSTM(input_size=n_features, hidden_size=32, batch_first=True)
         self._dropout = nn.Dropout(0.5)
@@ -75,6 +94,14 @@ class TrajectoryObjectEncoder(nn.Module):
 
 class TrajectoryAttentionEncoder(nn.Module):
     def __init__(self, n_features: int, trajectory_length: int):
+        """
+        Encodes agent and neighbours trajectories with attention applied between them to filter
+        important features of neighbours for agent
+
+        Args:
+            n_features: Trajectory node features dimension
+            trajectory_length: Trajectory length
+        """
         super(TrajectoryAttentionEncoder, self).__init__()
         self._agent_encoder = TrajectoryObjectEncoder(n_features=n_features, trajectory_length=trajectory_length)
         self._object_encoder = TrajectoryObjectEncoder(n_features=n_features, trajectory_length=trajectory_length)
@@ -103,6 +130,16 @@ class TrajectoryAttentionEncoder(nn.Module):
 
 class HeatmapModel(nn.Module):
     def __init__(self, encoder_input_shape: Tuple[int, int, int], decoder_input_shape: Tuple[int, int, int], traj_features: int, traj_length: int):
+        """
+        Estimates probabilities in form of a heatmap for agent end points
+        given rasterized HD map, agent trajectory and neighbours trajectories
+
+        Args:
+            encoder_input_shape: Encoder Input Shape
+            decoder_input_shape: Decoder Input Shape
+            traj_features: Trajectory node features dimension
+            traj_length: Trajectory length
+        """
         super(HeatmapModel, self).__init__()
         self._encoder = RasterEncoder(encoder_input_shape)
         self._decoder = HeatmapOutputDecoder((decoder_input_shape[0] + 128, decoder_input_shape[1], decoder_input_shape[2]))
@@ -127,17 +164,32 @@ class HeatmapModel(nn.Module):
 
 
 class LightningHeatmapModel(LightningModule):
-    def __init__(self,
-            encoder_input_shape: Tuple[int, int, int],
-            decoder_input_shape: Tuple[int, int, int],
-            traj_features: int,
-            traj_length: int,
-            sampler_targets: int,
-            sampler_radius: int,
-            base_lr: float,
-            sched_step: int,
-            sched_gamma: float
-        ):
+    def __init__(
+        self,
+        encoder_input_shape: Tuple[int, int, int],
+        decoder_input_shape: Tuple[int, int, int],
+        traj_features: int,
+        traj_length: int,
+        sampler_targets: int,
+        sampler_radius: int,
+        base_lr: Optional[float],
+        sched_step: Optional[int],
+        sched_gamma: Optional[float]
+    ):
+        """
+        Pytorch Lightning wrapper for HeatmapModel for training purposes
+
+        Args:
+            encoder_input_shape: Encoder Input Shape
+            decoder_input_shape: Decoder Input Shape
+            traj_features: Trajectory node features dimension
+            traj_length: Trajectory length
+            sampler_targets: Number of targets to sample by sampler (used for validation)
+            sampler_radius: Sampler target radius (used for validation)
+            base_lr: Base model learning rate (can be none for inference)
+            sched_step: Scheduler step (can be none for inference)
+            sched_gamma: Scheduler lr decay (can be none for inference)
+        """
         super(LightningHeatmapModel, self).__init__()
         self._heatmap_estimator = HeatmapModel(
             encoder_input_shape=encoder_input_shape,

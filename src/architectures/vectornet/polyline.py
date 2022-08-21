@@ -7,6 +7,14 @@ from architectures.components.graphs import GCN
 
 class PGN(nn.Module):
     def __init__(self, cluster_size: int, in_features: int, n_layers: int):
+        """
+        Polyline encoder
+
+        Args:
+            cluster_size: Cluster size (polyline length)
+            in_features: Number of features per polyline point
+            n_layers: Number of layers
+        """
         super(PGN, self).__init__()
         self._in_features = in_features
         self._out_features_list = [self._in_features * (2 ** i) for i in range(n_layers)]
@@ -18,6 +26,9 @@ class PGN(nn.Module):
 
     @property
     def out_features(self):
+        """
+        Returns: Output feature dimension
+        """
         return self._in_features * (2 ** len(self._layers))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -30,6 +41,21 @@ class PGN(nn.Module):
 
 class PolylineLayer(nn.Module):
     def __init__(self, cluster_size: int, in_features: int):
+        """
+        Polyline Layer (GCN wrapper)
+
+        Adjcency matrix:
+        [
+            [1, 1, 1, ..., 1]
+            [0, 1, 1, ..., 1]
+            ...
+            [0, 0, ..., 0, 1]
+        ]
+
+        Args:
+            cluster_size: Cluster size (polyline length)
+            in_features: Number of features per polyline point
+        """
         super(PolylineLayer, self).__init__()
         self._feature_encoding = nn.Linear(in_features, in_features)
         self._layernorm = nn.LayerNorm([in_features])

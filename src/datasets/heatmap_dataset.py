@@ -13,7 +13,7 @@ class HeatmapOutputRasterScenarioDataset:
     def __init__(self, config: configparser.GlobalConfig, split: str):
         """
         Dataset for loading processed rasterized files
-RasterScenarioData
+
         Args:
             config: Config
         """

@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from configparser.raster import RasterizationTrainTrajectoryForecasterParametersConfig
 from evaluation import metrics
 
+
 class TrajectoryForecaster(nn.Module):
     def __init__(self, in_features: int, trajectory_hist_length: int, trajectory_future_length: int):
         super(TrajectoryForecaster, self).__init__()

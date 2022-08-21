@@ -297,8 +297,19 @@ def pad_objects_trajectories(
     objects_traj_hists: np.ndarray,
     objects_traj_gts: np.ndarray,
     max_neighbours: int
-
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    TODO
+    
+    Args:
+        center_points: 
+        objects_traj_hists: 
+        objects_traj_gts: 
+        max_neighbours: 
+
+    Returns:
+
+    """
     if objects_traj_hists.shape[0] > max_neighbours:
         object_traj_points = objects_traj_hists[:, -1]
         distances = (object_traj_points[:, 0] - center_points[0]) ** 2 + (object_traj_points[:, 1] - center_points[1]) ** 2
@@ -316,8 +327,16 @@ def pad_objects_trajectories(
 
     return objects_traj_hists, objects_traj_gts
 
+
 class ScenarioRasterPreprocess:
     def __init__(self, config: configparser.GlobalConfig, disable_visualization: bool = False):
+        """
+        TODO
+
+        Args:
+            config:
+            disable_visualization:
+        """
         # configs
         self._config = config
         self._params = config.raster.data_process.parameters
