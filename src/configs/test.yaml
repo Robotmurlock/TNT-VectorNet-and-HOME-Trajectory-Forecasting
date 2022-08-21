@@ -43,12 +43,21 @@ raster:
       sched_step: 10
       sched_gamma: 0.1
   train_heatmap:
-    batch_size: 16
+    train_input_path: 'TODO'
+    val_input_path: 'TODO'
+    model_name: 'home-baseline'
     n_workers: 8
-    epochs: 30
-    augmentation: True
-    input_path: 'x'
-    output_path: 'y'
+    resume: True
+    starting_checkpoint_name: 'last.ckpt'
+    parameters:
+      epochs: 100
+      sampler_targets: 6
+      sampler_radius: 2
+      batch_size: 4
+      augmentation: True
+      base_lr: 0.01
+      sched_step: 30
+      sched_gamma: 0.1
 graph:
   data_process:
     input_path: 'test_data/internal'

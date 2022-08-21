@@ -102,8 +102,6 @@ class TorchModalitySampler(nn.Module):
         return batch_result
 
 
-
-
 class KMeansProbSampler(nn.Module):
     def __init__(self, n_targets: int, n_iterations: int):
         super(KMeansProbSampler, self).__init__()

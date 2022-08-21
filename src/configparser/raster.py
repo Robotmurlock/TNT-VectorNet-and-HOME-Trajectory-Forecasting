@@ -1,7 +1,7 @@
 """
 Heatmap output config
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 
@@ -29,13 +29,27 @@ class DataProcessRasterizationConfig:
 
 
 @dataclass
-class RasterizationTrainHeatmapConfig:
-    batch_size: int
-    n_workers: int
+class RasterizationTrainHeatmapParametersConfig:
+    sampler_targets: int
+    sampler_radius: int
     epochs: int
+    batch_size: int
     augmentation: bool
-    input_path: str
-    output_path: str
+    base_lr: float
+    sched_step: int
+    sched_gamma: float
+
+
+@dataclass
+class RasterizationTrainHeatmapConfig:
+    train_input_path: str
+    val_input_path: str
+    model_name: str
+    n_workers: int
+    resume: bool
+    parameters: RasterizationTrainHeatmapParametersConfig
+
+    starting_checkpoint_name: str = field(default='last.ckpt')
 
 
 @dataclass
