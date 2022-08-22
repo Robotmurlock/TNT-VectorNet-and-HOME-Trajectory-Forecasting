@@ -250,7 +250,7 @@ class TargetDrivenForecaster(LightningModule):
         assert self._train_config is not None, 'Error: Training config not set'
         tg_opt = torch.optim.Adam(self._target_generator.parameters(), lr=self._train_config.tg_lr)
         tf_opt = torch.optim.Adam(self._trajectory_forecaster.parameters(), lr=self._train_config.tf_lr)
-        tfs_opt = torch.optim.Adam(self._trajectory_scorer.parameters(), lr=self._train_config.tf_lr)
+        tfs_opt = torch.optim.Adam(self._trajectory_scorer.parameters(), lr=self._train_config.tfs_lr)
 
         tg_sched = {
             'scheduler': torch.optim.lr_scheduler.StepLR(
@@ -261,8 +261,26 @@ class TargetDrivenForecaster(LightningModule):
             'interval': 'epoch',
             'frequency': 1
         }
+        tf_sched = {
+            'scheduler': torch.optim.lr_scheduler.StepLR(
+                optimizer=tf_opt,
+                step_size=self._train_config.tf_sched_step,
+                gamma=self._train_config.tf_sched_gamma
+            ),
+            'interval': 'epoch',
+            'frequency': 1
+        }
+        tfs_sched = {
+            'scheduler': torch.optim.lr_scheduler.StepLR(
+                optimizer=tfs_opt,
+                step_size=self._train_config.tfs_sched_step,
+                gamma=self._train_config.tfs_sched_gamma
+            ),
+            'interval': 'epoch',
+            'frequency': 1
+        }
 
-        return [tg_opt, tf_opt, tfs_opt], [tg_sched]
+        return [tg_opt, tf_opt, tfs_opt], [tg_sched, tf_sched, tfs_sched]
 
 
 def test():

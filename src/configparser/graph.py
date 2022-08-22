@@ -33,6 +33,9 @@ class GraphTrainConfigParameters:
     tf_lr: float
     tf_sched_step: int
     tf_sched_gamma: float
+    tfs_lr: float
+    tfs_sched_step: int
+    tfs_sched_gamma: float
     huber_delta: float
     use_traj_scoring: bool
 

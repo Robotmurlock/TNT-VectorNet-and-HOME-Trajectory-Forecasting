@@ -85,7 +85,7 @@ graph:
       tg_lr: 0.01
       tg_sched_step: 50
       tg_sched_gamma: 0.1
-      tf_lr: 0.011
+      tf_lr: 0.01
       tf_sched_step: 50
       tf_sched_gamma: 0.1
       huber_delta: 0.04
