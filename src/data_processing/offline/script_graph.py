@@ -3,7 +3,6 @@ import logging
 import numpy as np
 from typing import List
 import random
-from multiprocessing import Value
 import math
 
 from utils import steps, trajectories, time
@@ -221,11 +220,6 @@ class GraphPipeline(pipeline.Pipeline):
         self._dpg_config = config.graph.data_process
         self._test = 0
 
-        # anchor sampling QA
-        self._n_instances = Value('i', 0)
-        self._n_bad_anchors = Value('i', 0)
-        self._n_very_bad_anchors = Value('i', 0)
-
     def process(self, data: str) -> GraphScenarioData:
         scenario = ScenarioData.load(data)
         # create polylines
@@ -280,11 +274,6 @@ class GraphPipeline(pipeline.Pipeline):
         # Anchor QA
         anchor_error = anchor_min_error(anchors, agent_traj_gt_normalized[-1, :])
         logger.debug(f'[{scenario.dirname}]: Closest anchor distance is: {anchor_error:.2f}')
-        self._n_instances.value += 1
-        if anchor_error >= 0.2:
-            self._n_bad_anchors.value += 1
-            if anchor_error >= 0.5:
-                self._n_very_bad_anchors.value += 1
 
         graph_scenario = GraphScenarioData(
             id=scenario.id,
@@ -312,10 +301,7 @@ class GraphPipeline(pipeline.Pipeline):
         self._fig.savefig(fig_path)
 
     def report(self) -> None:
-        logger.info(f'Dataset size: {self._n_instances.value}')
-        logger.info(f'Percentage of samples with bad anchor samplings: {100*self._n_bad_anchors.value / self._n_instances.value:.2f}%')
-        logger.info(f'Percentage of samples with very bad anchor samplings: {100*self._n_very_bad_anchors.value / self._n_instances.value:.2f}%')
-
+        pass
 
 @time.timeit
 def run(config: configparser.GlobalConfig):
