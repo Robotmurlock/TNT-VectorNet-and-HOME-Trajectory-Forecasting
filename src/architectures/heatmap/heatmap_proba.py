@@ -209,6 +209,9 @@ class LightningHeatmapModel(LightningModule):
             'e2e/min_fde': [],
         }
 
+        # e2e parameters
+        self._n_targets = sampler_targets
+
         # parameters
         self._base_lr = base_lr
         self._sched_step = sched_step
@@ -236,8 +239,9 @@ class LightningHeatmapModel(LightningModule):
 
         # semi e2e loss
         targets = self._sampler(pred_heatmap) - pred_heatmap.shape[-1] // 2
+        ground_truth_expanded = agent_traj_gt_end_point.unsqueeze(1).repeat(1, self._n_targets, 1)
         batch_fde, _ = torch.min(torch.sqrt(
-            (targets[..., 0] - agent_traj_gt_end_point[..., 0]) ** 2 + (targets[..., 1] - agent_traj_gt_end_point[..., 1]) ** 2), dim=-1)
+            (targets[..., 0] - ground_truth_expanded[..., 0]) ** 2 + (targets[..., 1] - ground_truth_expanded[..., 1]) ** 2), dim=-1)
         fde = torch.mean(batch_fde)
 
         self._log_history['e2e/min_fde'].append(fde)
