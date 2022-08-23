@@ -17,7 +17,8 @@ from datasets.dataset import ScenarioDatasetTorchWrapper
 def run(config: configparser.GlobalConfig):
     train_input_path = os.path.join(config.global_path, config.raster.train_tf.train_input_path)
     val_input_path = os.path.join(config.global_path, config.raster.train_tf.val_input_path)
-    model_storage_path = os.path.join(config.global_path, config.raster.train_tf.output_path)
+    model_name = config.raster.train_tf.model_name
+    model_path = os.path.join(config.model_storage_path, 'home', 'forecaster')
 
     train_config = config.raster.train_tf
     train_parameters = train_config.parameters
@@ -28,9 +29,10 @@ def run(config: configparser.GlobalConfig):
         in_features=3,  # coords + mask
         trajectory_hist_length=config.global_parameters.trajectory_history_window_length,
         trajectory_future_length=config.global_parameters.trajectory_future_window_length,
-        train_config=train_parameters
+        train_config=train_parameters,
+        traj_scale=config.graph.data_process.normalization_parameter
     )
-    logger = TensorBoardLogger(model_storage_path, name=train_config.model_name)
+    logger = TensorBoardLogger(model_path, name=train_config.model_name)
     trainer = Trainer(
         gpus=1,
         accelerator='cuda',
@@ -39,8 +41,8 @@ def run(config: configparser.GlobalConfig):
         log_every_n_steps=1,
         callbacks=[
             ModelCheckpoint(
-                dirpath=model_storage_path,
-                monitor='min_ade_val',
+                dirpath=os.path.join(model_path, model_name),
+                monitor='e2e/fde',
                 save_last=True,
                 save_top_k=1
             )

@@ -79,7 +79,7 @@ graph:
     resume: True
     parameters:
       epochs: 150
-      n_targets: 20
+      n_targets: 6
       n_trajectories: 6
       batch_size: 8
       tg_lr: 0.01
@@ -88,8 +88,11 @@ graph:
       tf_lr: 0.01
       tf_sched_step: 50
       tf_sched_gamma: 0.1
+      tfs_lr: 0.01
+      tfs_sched_step: 50
+      tfs_sched_gamma: 0.1
       huber_delta: 0.04
-      use_traj_scoring: True
+      use_traj_scoring: False
 evaluation:
   input_path: 'test_data/internal_graph'
   output_path: 'test_data/result'

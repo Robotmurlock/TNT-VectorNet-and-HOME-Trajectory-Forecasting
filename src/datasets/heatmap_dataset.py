@@ -35,7 +35,6 @@ class HeatmapOutputRasterScenarioDataset:
         for index in range(len(self)):
             yield self[index]
 
-
 class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
     def __init__(self, config: configparser.GlobalConfig, split: str):
         """
@@ -60,6 +59,7 @@ class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
         objects_traj_hist = torch.tensor(scenario_data.objects_traj_hists / 25.0, dtype=torch.float32)
         gt_heatmap = torch.unsqueeze(torch.tensor(scenario_data.heatmap, dtype=torch.float32), dim=0)
         agent_traj_gt_end_point = torch.tensor(scenario_data.agent_traj_gt[-1, :], dtype=torch.float32)
+        agent_traj_gt = torch.tensor(scenario_data.agent_traj_gt, dtype=torch.float32)
 
         return {
             'raster': raster_features,
@@ -67,6 +67,7 @@ class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
             'agent_traj_diff': scenario_data.ground_truth_trajectory_difference,
             'agent_traj_gt_end_point': agent_traj_gt_end_point,
             'objects_traj_hist': objects_traj_hist,
+            'agent_traj_gt': agent_traj_gt,
             'da_area': da_area,
             'heatmap': gt_heatmap,
             'id': scenario_data.id,
