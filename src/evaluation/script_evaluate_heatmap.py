@@ -11,6 +11,9 @@ from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDataset
 
 
 def run(config: configparser.GlobalConfig):
+    heatmap_model_name = config.raster.train_heatmap.model_name
+    forecaster_model_name = config.raster.train_tf.model_name
+
     model = HeatmapTrajectoryForecaster(
         encoder_input_shape=(9, 224, 224),
         decoder_input_shape=(512, 14, 14),
@@ -21,21 +24,23 @@ def run(config: configparser.GlobalConfig):
         sampler_targets=6,
         sampler_radius=2,
 
-        heatmap_estimator_path=os.path.join(config.global_path, 'model_storage', 'home', 'heatmap_targets', 'last.ckpt'),
-        trajectory_forecaster_path=os.path.join(config.global_path, 'model_storage', 'home', 'trajectory_estimation', 'last.ckpt')
+        heatmap_estimator_path=os.path.join(config.global_path, 'model_storage', 'home', 'heatmap_targets', heatmap_model_name, 'epoch=4-step=64285.ckpt'),
+        trajectory_forecaster_path=os.path.join(config.global_path, 'model_storage', 'home', 'forecaster', forecaster_model_name, 'last.ckpt')
     )
     model.eval()
 
     outputs_path = os.path.join(config.global_path, 'raster_result')
     for split_name in conventions.SPLIT_NAMES:
+        if split_name == 'train':
+            continue
         dataset_heatmap = HeatmapOutputRasterScenarioDataset(config, split=split_name)
-        eval_tmp.evaluate(
+        eval_home.evaluate(
             model=model,
             loss=PixelFocalLoss(),
             dataset=dataset_heatmap,
             output_path=os.path.join(outputs_path, split_name),
             device='cuda',
-            visualize=True,
+            visualize=False,
             scale=config.graph.data_process.normalization_parameter,
             title=split_name
         )

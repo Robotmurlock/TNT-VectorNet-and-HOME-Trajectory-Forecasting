@@ -226,7 +226,6 @@ class TargetDrivenForecaster(LightningModule):
         self._log_history['val/tf_confidence_loss'].append(tf_bce_loss)
 
         # e2e metrics
-        torch.set_printoptions(precision=2, sci_mode=False)
         normalized_forecasts = outputs['forecasts'].cumsum(axis=2) * self._traj_scale
         gt_traj_normalized = gt_traj.cumsum(axis=1) * self._traj_scale
         expanded_gt_traj_normalized = gt_traj_normalized.unsqueeze(1).repeat(1, self._n_trajectories, 1, 1)

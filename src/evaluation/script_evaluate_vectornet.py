@@ -29,7 +29,7 @@ def run(config: configparser.GlobalConfig):
         ds_path = os.path.join(datasets_path, split_name)
 
         dataset = GraphScenarioDataset(ds_path)
-        eval.evaluate(
+        eval_vectornet.evaluate(
             model=model,
             loss=loss,
             dataset=dataset,

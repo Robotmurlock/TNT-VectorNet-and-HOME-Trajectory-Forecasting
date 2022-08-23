@@ -4,10 +4,13 @@ import torch.nn.functional as F
 from typing import Tuple
 
 
+from architectures.components.losses import BinaryFocalLoss
+
+
 class TargetsLoss(nn.Module):
     def __init__(self, delta: float = 0.04):
         super(TargetsLoss, self).__init__()
-        self._bce = nn.BCELoss(reduction='sum')
+        self._bce = nn.BCELoss(reduction='sum') # BinaryFocalLoss(alpha=4, reduction='sum')
         self._huber = nn.HuberLoss(delta=delta, reduction='sum')
 
     def forward(self, anchors: torch.Tensor, offsets: torch.Tensor, confidences: torch.Tensor, ground_truth: torch.Tensor) \

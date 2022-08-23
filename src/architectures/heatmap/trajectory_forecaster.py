@@ -43,7 +43,7 @@ class TrajectoryForecaster(nn.Module):
 
 class LightningTrajectoryForecaster(LightningModule):
     def __init__(self, train_config: RasterizationTrainTrajectoryForecasterParametersConfig,
-                 in_features: int, trajectory_hist_length: int, trajectory_future_length: int):
+                 in_features: int, trajectory_hist_length: int, trajectory_future_length: int, traj_scale: float = 1.0):
         super(LightningTrajectoryForecaster, self).__init__()
         self._model = TrajectoryForecaster(
             in_features=in_features,
@@ -53,11 +53,13 @@ class LightningTrajectoryForecaster(LightningModule):
         self._train_config = train_config
 
         self._log_history = {
-            'training_loss': [],
-            'val_loss': [],
-            'min_ade_val': [],
-            'min_fde_val': []
+            'train/loss': [],
+            'val/loss': [],
+            'e2e/fde': [],
+            'e2e/ade': []
         }
+
+        self._traj_scale = traj_scale
 
     def forward(self, traj_hist: torch.Tensor, end_point: torch.Tensor) -> torch.Tensor:
         return self._model(traj_hist, end_point)
@@ -66,19 +68,24 @@ class LightningTrajectoryForecaster(LightningModule):
         traj, gt_traj, end_point = batch
         outputs = self._model(traj, end_point).squeeze(1)
         loss = F.mse_loss(outputs, gt_traj)
-        self._log_history['training_loss'].append(loss)
+        self._log_history['train/loss'].append(loss)
         return loss
 
     def validation_step(self, batch, *args, **kwargs) -> torch.Tensor:
         hist_traj, gt_traj, end_point = batch
-        outputs = self._model(hist_traj, end_point).squeeze(1)
-        loss = F.mse_loss(outputs, gt_traj)
-        self._log_history['val_loss'].append(loss)
+        forecasts = self._model(hist_traj, end_point).squeeze(1)
+        loss = F.mse_loss(forecasts, gt_traj)
+        self._log_history['val/loss'].append(loss)
 
-        min_ade, _ = metrics.minADE(outputs, gt_traj)
-        min_fde, _ = metrics.minFDE(outputs, gt_traj)
-        self._log_history['min_ade_val'].append(min_ade)
-        self._log_history['min_fde_val'].append(min_fde)
+        normalized_forecasts = forecasts.cumsum(axis=1) * self._traj_scale
+        gt_traj_normalized = gt_traj.cumsum(axis=1) * self._traj_scale
+        min_ade, _ = metrics.minADE(normalized_forecasts, gt_traj_normalized)
+        min_fde, _ = metrics.minFDE(normalized_forecasts, gt_traj_normalized)
+
+        ade = metrics.ADE(forecasts, gt_traj)
+        fde = metrics.FDE(forecasts, gt_traj)
+        self._log_history['e2e/ade'].append(ade)
+        self._log_history['e2e/fde'].append(fde)
 
         return loss
 
