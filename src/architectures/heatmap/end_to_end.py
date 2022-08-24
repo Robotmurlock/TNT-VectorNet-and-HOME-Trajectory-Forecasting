@@ -16,7 +16,8 @@ class HeatmapTrajectoryForecaster(nn.Module):
         trajectory_future_window_length: int,
 
         sampler_targets: int,
-        sampler_radius: int,
+        sampler_radius: float,
+        sampler_upscale: int,
 
         heatmap_estimator_path: str,
         trajectory_forecaster_path: str
@@ -35,7 +36,11 @@ class HeatmapTrajectoryForecaster(nn.Module):
             sched_gamma=None
         )
 
-        self._target_sampler = TorchModalitySampler(n_targets=sampler_targets, radius=sampler_radius)
+        self._target_sampler = TorchModalitySampler(
+            n_targets=sampler_targets,
+            radius=sampler_radius,
+            upscale=sampler_upscale
+        )
 
         self._forecaster = self._forecaster = LightningTrajectoryForecaster.load_from_checkpoint(
             checkpoint_path=trajectory_forecaster_path,
@@ -48,10 +53,11 @@ class HeatmapTrajectoryForecaster(nn.Module):
     def forward(self, raster: torch.Tensor, agent_traj_hist: torch.Tensor, objects_traj_hists: torch.Tensor, da_area: torch.Tensor) \
             -> Dict[str, torch.Tensor]:
         heatmap = self._heatmap_estimator(raster, agent_traj_hist, objects_traj_hists) * da_area
-        targets = self._target_sampler(heatmap)
+        targets, confidences = self._target_sampler(heatmap)
         forecasts = self._forecaster(agent_traj_hist, (targets - 112) / 25.0)  # FIXME
         return {
             'forecasts': forecasts,
+            'confidences': confidences,
             'targets': targets,
             'heatmap': heatmap
         }

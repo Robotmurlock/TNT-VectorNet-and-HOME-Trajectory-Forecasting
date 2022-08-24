@@ -8,7 +8,6 @@ from typing import Any, Union, Optional
 from tqdm import tqdm
 import logging
 import torch
-import traceback
 
 from evaluation import metrics
 from datasets.data_models import RasterScenarioData
@@ -44,6 +43,7 @@ def evaluate(
     """
     torch.set_printoptions(precision=2, sci_mode=False)
 
+    fig = None
     n_scenarios = len(dataset)
     total_agent_min_ade = 0.0
     total_agent_min_fde = 0.0
@@ -52,6 +52,8 @@ def evaluate(
 
     model.to(device)
     model.eval()
+    n_misses = 0
+
     with torch.no_grad():
         for scenario_index in tqdm(range(len(dataset))):
             data: RasterScenarioData = dataset[scenario_index]
@@ -66,8 +68,8 @@ def evaluate(
 
             outputs = model(raster, agent_traj_hist, objects_traj_hists, da_area)
 
-            forecasts, targets, heatmap = outputs['forecasts'][0].detach().cpu(), outputs['targets'][0].detach().cpu().numpy(), \
-                outputs['heatmap'][0][0].detach().cpu().numpy()
+            forecasts, targets, heatmap, confidences = outputs['forecasts'][0].detach().cpu(), outputs['targets'][0].detach().cpu().numpy(), \
+                outputs['heatmap'][0][0].detach().cpu().numpy(), outputs['confidences'][0]
 
             forecasts = forecasts.cumsum(dim=1)
             gt_traj = torch.tensor(data.agent_traj_gt, dtype=torch.float32)  # transform differences to trajectory
@@ -79,6 +81,8 @@ def evaluate(
             agent_min_fde, _ = metrics.minFDE(forecasts_scaled, gt_traj_scaled)
             agent_min_ade = agent_min_ade.detach().item()
             agent_min_fde = agent_min_fde.detach().item()
+            if agent_min_fde > 2.0:
+                n_misses += 1
 
             # Deducing error class
             scenario_metrics['agent'] = {
@@ -121,6 +125,7 @@ def evaluate(
             completed_scenarios += 1
             logger.debug(f'[Current-Stats]: minADE={total_agent_min_ade / completed_scenarios}')
             logger.debug(f'[Current-Stats]: minFDE={total_agent_min_fde / completed_scenarios}')
+            logger.debug(f'[Current-Stats]: MissRate={n_misses / completed_scenarios}')
 
         dataset_metrics = {
             'agent-mean-minADE': total_agent_min_ade / n_scenarios,
