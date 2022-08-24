@@ -22,10 +22,11 @@ def run(config: configparser.GlobalConfig):
         trajectory_future_window_length=config.global_parameters.trajectory_future_window_length,
 
         sampler_targets=6,
-        sampler_radius=2,
+        sampler_radius=1.5,
+        sampler_upscale=2,
 
-        heatmap_estimator_path=os.path.join(config.global_path, 'model_storage', 'home', 'heatmap_targets', heatmap_model_name, 'epoch=4-step=64285.ckpt'),
-        trajectory_forecaster_path=os.path.join(config.global_path, 'model_storage', 'home', 'forecaster', forecaster_model_name, 'last.ckpt')
+        heatmap_estimator_path=os.path.join(config.model_storage_path, 'home', 'heatmap_targets', heatmap_model_name, 'epoch=4-step=64285.ckpt'),
+        trajectory_forecaster_path=os.path.join(config.model_storage_path, 'home', 'forecaster', forecaster_model_name, 'last.ckpt')
     )
     model.eval()
 
