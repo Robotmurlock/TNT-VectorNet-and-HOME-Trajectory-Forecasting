@@ -47,7 +47,6 @@ class TrajectoryScorer(nn.Module):
 
         self._ln1 = nn.LayerNorm(128)
         self._lrelu = nn.LeakyReLU(0.1)
-        self._sigmoid = nn.Sigmoid()
 
     def forward(self, features: torch.Tensor, trajectories: torch.Tensor) -> torch.Tensor:
         n_trajectories = trajectories.shape[1]

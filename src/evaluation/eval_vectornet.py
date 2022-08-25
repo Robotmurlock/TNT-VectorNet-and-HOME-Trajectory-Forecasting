@@ -4,7 +4,7 @@ TODO: Refactor
 import os
 from pathlib import Path
 import json
-from typing import Any, Union, Optional
+from typing import Any, Union, Optional, Tuple
 from tqdm import tqdm
 import logging
 import torch
@@ -14,6 +14,27 @@ from datasets.data_models import GraphScenarioData
 
 
 logger = logging.getLogger('Evaluation')
+
+
+def nms(forecasts: torch.Tensor, targets: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    keep = [True for _ in range(targets.shape[0])]
+    for i in range(targets.shape[0]-1):
+        if not keep[i]:
+            continue
+        for j in range(i+1, targets.shape[0]):
+            if torch.sqrt((targets[i, 0] - targets[j, 0]) ** 2 + (targets[i, 1] - targets[j, 1]) ** 2) < 0.08:
+                keep[j] = False
+
+    indices = [i for i, k in enumerate(keep) if k]
+    indices = indices[:6]
+
+    ind = 0
+    while len(indices) < 6:
+        if not keep[ind]:
+            indices.append(ind)
+        ind += 1
+
+    return forecasts[:, torch.tensor(indices, dtype=torch.long), :, :], targets[torch.tensor(indices, dtype=torch.long), :]
 
 
 def evaluate(
@@ -76,6 +97,10 @@ def evaluate(
             torch.set_printoptions(precision=2, sci_mode=False)
             forecasts, targets, anchors, all_forecasts = \
                 outputs['forecasts'], outputs['targets'][0], outputs['anchors'][0], outputs['all_forecasts'][0]
+
+            forecasts, targets = nms(forecasts, targets)
+            assert forecasts.shape[1] == 6 and targets.shape[0] == 6
+
             forecasts = forecasts.cumsum(axis=2)  # transform differences to trajectory
             all_forecasts = all_forecasts.cumsum(axis=1)  # transform differences to trajectory
             gt_traj = gt_traj.cumsum(axis=1)  # transform differences to trajectory
