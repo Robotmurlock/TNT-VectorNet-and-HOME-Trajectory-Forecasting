@@ -84,12 +84,14 @@ class ForecastingScoringLoss(nn.Module):
                 + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2)
             ), dim=-1
         )[0]
-        closest_target_index = torch.argmin(distances, dim=-1)
-        closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
+        # closest_target_index = torch.argmin(distances, dim=-1) TODO
+        # closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
+        gt_conf = F.softmax(distances, dim=-1)
 
         # confidence loss
         # ideally the closest target should have confidence 1 and all others should have 0
-        return self._bce(F.softmax(conf, dim=-1), closest_target_index_onehot)
+        # return self._bce(F.softmax(conf, dim=-1), closest_target_index_onehot)
+        return self._bce(F.softmax(conf, dim=-1), gt_conf)
 
 
 class LiteTNTLoss(nn.Module):

@@ -68,7 +68,7 @@ def evaluate(
 
             outputs = model(raster, agent_traj_hist, objects_traj_hists, da_area)
 
-            forecasts, targets, heatmap, confidences = outputs['forecasts'][0].detach().cpu(), outputs['targets'][0].detach().cpu().numpy(), \
+            forecasts, targets, heatmap, confidences = outputs['forecasts'][0].detach().cpu(), outputs['targets'][0].detach().cpu(), \
                 outputs['heatmap'][0][0].detach().cpu().numpy(), outputs['confidences'][0]
 
             forecasts = forecasts.cumsum(dim=1)
@@ -104,7 +104,7 @@ def evaluate(
                 # Visualization
                 fig = data.visualize(
                     fig=fig,
-                    targets=targets,
+                    targets=targets.numpy(),
                     agent_forecast=forecasts_scaled.numpy(),
                     heatmap=heatmap,
                 )
