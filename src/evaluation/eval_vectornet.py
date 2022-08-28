@@ -70,6 +70,7 @@ def evaluate(
     total_tg_ce_loss = 0.0
     total_tg_huber_loss = 0.0
     total_tf_huber_loss = 0.0
+    n_misses = 0
 
     model.to(device)
     model.eval()
@@ -112,6 +113,8 @@ def evaluate(
             agent_min_fde, _ = metrics.minFDE(forecasts_scaled, gt_traj_scaled)
             agent_min_ade = agent_min_ade.detach().item()
             agent_min_fde = agent_min_fde.detach().item()
+            if agent_min_fde > 2.0:
+                n_misses += 1
 
             # Loss info
             total_loss = total_loss.detach().item()
@@ -166,6 +169,7 @@ def evaluate(
         dataset_metrics = {
             'agent-mean-minADE': total_agent_min_ade / n_scenarios,
             'agent-mean-minFDE': total_agent_min_fde / n_scenarios,
+            'MissRate': n_misses / n_scenarios,
             'total_loss': total_total_loss / n_scenarios,
             'tg_ce_loss': total_tg_ce_loss / n_scenarios,
             'tg_huber_loss': total_tg_huber_loss / n_scenarios,
