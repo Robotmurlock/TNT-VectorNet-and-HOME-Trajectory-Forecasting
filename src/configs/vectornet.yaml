@@ -1,0 +1,63 @@
+log:
+  level: 'DEBUG'
+global_parameters:
+  trajectory_history_window_length: 20
+  trajectory_future_window_length: 30
+global_path: '/workspace'
+model_storage_path: '/workspace/model_storage'
+data_process:
+  input_path: 'dataset'
+  output_path: 'internal'
+  n_processes: 1
+  visualize: False
+  parameters:
+    trajectory_min_history_window_length: 5
+    object_trajectory_min_history_window_length: 5
+    object_trajectory_min_future_window_length: 3
+    object_distance_threshold: 100
+    centerline_radius_scale: 3.0
+    add_neighboring_lanes: True
+    lane_radius_scale: 5.0
+    min_lane_radius: 50.0
+graph:
+  data_process:
+    input_path: 'internal'
+    output_path: 'internal_graph'
+    max_polyline_segments: 20
+    max_polylines: 100
+    normalization_parameter: 25.0
+    sampling_algorithm: 'polyline'
+    visualize: False
+    visualize_anchors: True
+    visualize_candidate_centerlines: True
+    report: True
+  train:
+    train_input_path: 'internal_graph/train'
+    val_input_path: 'internal_graph/val'
+    model_name: 'vectornet-v2-50'
+    visualize: False
+    n_workers: 8
+    parameters:
+      epochs: 50
+      n_targets: 6
+      n_trajectories: 6
+      batch_size: 64
+      tg_lr: 0.0001
+      tg_sched_step: 15
+      tg_sched_gamma: 0.1
+      tf_lr: 0.0001
+      tf_sched_step: 15
+      tf_sched_gamma: 0.1
+      tfs_lr: 0.0001
+      tfs_sched_step: 15
+      tfs_sched_gamma: 0.1
+      huber_delta: 0.20
+      use_traj_scoring: False
+model:
+  name: 'vectornet'
+  config_path: 'configs/model_config.yaml'
+evaluation:
+  input_path: 'internal_graph'
+  output_path: 'result'
+  model_path: 'model_storage/vectornet-no-traj-old-config-30'
+  visualize: False
