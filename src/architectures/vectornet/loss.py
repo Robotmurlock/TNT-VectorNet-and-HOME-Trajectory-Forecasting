@@ -4,9 +4,6 @@ import torch.nn.functional as F
 from typing import Tuple
 
 
-from architectures.components.losses import BinaryFocalLoss
-
-
 class TargetsLoss(nn.Module):
     def __init__(self, delta: float = 0.04):
         super(TargetsLoss, self).__init__()
@@ -70,28 +67,32 @@ class ForecastingLoss(nn.Module):
 
 
 class ForecastingScoringLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, temperature: float = 0.1):
         """
         Trajectory confidence estimation loss
         """
         super(ForecastingScoringLoss, self).__init__()
         self._bce = nn.BCELoss(reduction='sum')
+        self._temperature = temperature
 
     def forward(self, conf: torch.Tensor, forecasts: torch.Tensor, gt_traj: torch.Tensor) -> torch.Tensor:
         gt_traj_expanded = gt_traj.unsqueeze(1).repeat(1, forecasts.shape[1], 1, 1)
-        distances = torch.max(torch.sqrt(
+        distances = -torch.max(torch.sqrt(
                 torch.pow(forecasts[..., 0] - gt_traj_expanded[..., 0], 2)
                 + torch.pow(forecasts[..., 1] - gt_traj_expanded[..., 1], 2)
             ), dim=-1
-        )[0]
-        # closest_target_index = torch.argmin(distances, dim=-1) TODO
+        )[0] / self._temperature
+        # closest_target_index = torch.argmin(distances, dim=-1)
         # closest_target_index_onehot = F.one_hot(closest_target_index, num_classes=distances.shape[1]).float()
-        gt_conf = F.softmax(distances, dim=-1)
+        gt_conf_proba = torch.clamp(F.softmax(distances, dim=-1), min=1e-3, max=1 - 1e-3)
+        pred_conf_proba = torch.clamp(F.softmax(conf, dim=-1), min=1e-3, max=1 - 1e-3)
+        # print(gt_conf_proba)
+        # print(pred_conf_proba)
 
         # confidence loss
         # ideally the closest target should have confidence 1 and all others should have 0
         # return self._bce(F.softmax(conf, dim=-1), closest_target_index_onehot)
-        return self._bce(F.softmax(conf, dim=-1), gt_conf)
+        return self._bce(pred_conf_proba, gt_conf_proba)
 
 
 class LiteTNTLoss(nn.Module):

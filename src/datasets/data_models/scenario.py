@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import torch
 
 
+from datasets.data_models import constants
+
+
 @dataclass
 class ScenarioData:
     id: str
@@ -171,11 +174,13 @@ class ScenarioData:
         # remove duplicated labels
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc='upper right', prop={'size': 14})
+        plt.legend(by_label.values(), by_label.keys(), prop=constants.LEGEND_FONT)
 
         # set title and axis info
-        plt.title(f'Scenario {self.id}')
-        plt.xlabel('X')
-        plt.ylabel('Y')
+        plt.title(f'Scenario {self.id}', **constants.TITLE_FONT)
+        plt.xlabel('X', **constants.AXIS_FONT)
+        plt.ylabel('Y', **constants.AXIS_FONT)
+        plt.xticks(**constants.TICK_FONT)
+        plt.yticks(**constants.TICK_FONT)
 
         return fig

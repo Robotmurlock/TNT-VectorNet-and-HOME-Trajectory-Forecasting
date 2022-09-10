@@ -32,8 +32,6 @@ def run(config: configparser.GlobalConfig):
 
     outputs_path = os.path.join(config.global_path, 'raster_result')
     for split_name in conventions.SPLIT_NAMES:
-        if split_name == 'train':
-            continue
         dataset_heatmap = HeatmapOutputRasterScenarioDataset(config, split=split_name)
         eval_home.evaluate(
             model=model,
@@ -41,7 +39,7 @@ def run(config: configparser.GlobalConfig):
             dataset=dataset_heatmap,
             output_path=os.path.join(outputs_path, split_name),
             device='cuda',
-            visualize=False,
+            visualize=True,
             scale=config.graph.data_process.normalization_parameter,
             title=split_name
         )

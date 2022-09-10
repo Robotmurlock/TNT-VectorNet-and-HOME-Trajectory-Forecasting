@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 
 from datasets.data_models.types import ObjectType
+from datasets.data_models import constants
 
 
 @dataclass
@@ -194,13 +195,15 @@ class GraphScenarioData:
                         color='pink', label='ground truth target', s=200, zorder=20)
 
         # set title and axis info
-        plt.title(f'Graph Scenario {self.id}')
-        plt.xlabel('X')
-        plt.ylabel('Y')
+        plt.title(f'Graph Scenario {self.id}', **constants.TITLE_FONT)
+        plt.xlabel('X', **constants.AXIS_FONT)
+        plt.ylabel('Y', **constants.AXIS_FONT)
+        plt.xticks(**constants.TICK_FONT)
+        plt.yticks(**constants.TICK_FONT)
 
         # remove duplicated labels
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc='upper right', prop={'size': 14})
+        plt.legend(by_label.values(), by_label.keys(), prop=constants.LEGEND_FONT)
 
         return fig

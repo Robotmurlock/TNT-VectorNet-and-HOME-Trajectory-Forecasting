@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import torch
 
 
+from datasets.data_models import constants
+
+
 @dataclass
 class RasterScenarioData:
     id: str
@@ -113,10 +116,8 @@ class RasterScenarioData:
         for feature_index, feature_name in enumerate(feature_names):
             plt.subplot(3, 3, feature_index+1)
             plt.imshow(self.raster_features[feature_index, :, :], cmap='gray')
-            plt.xlabel('x')
-            plt.ylabel('y')
             plt.axis('off')
-            plt.title(feature_name)
+            plt.title(feature_name, **constants.SMALL_TITLE_FONT)
 
         return fig
 
@@ -133,7 +134,11 @@ class RasterScenarioData:
             image[:, :, i] = 0.5*self.raster_features[0]
 
         # plot ground truth (heatmap)
-        heatmap = self.heatmap / self.heatmap.max()
+        # Scaling values of heatmap for better visualization
+        gt_point_col, gt_point_row = [int(x) + self.heatmap.shape[0] // 2 for x in self.agent_traj_gt[-1]]
+        gt_point_intensity = np.array([self.heatmap[gt_point_row+r_offset, gt_point_col+c_offset]
+                                       for r_offset, c_offset in [(-1, 0), (0, -1), (1, 0), (0, -1)]]).mean()
+        heatmap = np.minimum(1.0, self.heatmap / gt_point_intensity)
         for i in range(2):
             image[:, :, i] = np.maximum(image[:, :, i], heatmap)
 
@@ -150,9 +155,11 @@ class RasterScenarioData:
             plt.scatter(targets[:, 0], targets[:, 1], color='red', s=100, label='sampled targets')
 
         # set title and axis info
-        plt.title(f'Heatmap {self.id}')
-        plt.xlabel('X')
-        plt.ylabel('Y')
+        plt.title(f'Heatmap {self.id}', **constants.TITLE_FONT)
+        plt.xlabel('X', **constants.AXIS_FONT)
+        plt.ylabel('Y', **constants.AXIS_FONT)
+        plt.xticks(**constants.TICK_FONT)
+        plt.yticks(**constants.TICK_FONT)
 
         return fig
 
@@ -231,12 +238,14 @@ class RasterScenarioData:
         # remove duplicated labels
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc='upper right')
+        plt.legend(by_label.values(), by_label.keys(), loc='upper right', prop=constants.LEGEND_FONT)
 
         # set title and axis info
-        plt.title(f'Scenario {self.id}')
-        plt.xlabel('X')
-        plt.ylabel('Y')
+        plt.title(f'Scenario {self.id}', **constants.TITLE_FONT)
+        plt.xlabel('X', **constants.AXIS_FONT)
+        plt.ylabel('Y', **constants.AXIS_FONT)
+        plt.xticks(**constants.TICK_FONT)
+        plt.yticks(**constants.TICK_FONT)
 
         return fig
 

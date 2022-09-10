@@ -16,7 +16,7 @@ from datasets.data_models import GraphScenarioData
 logger = logging.getLogger('Evaluation')
 
 
-def nms(forecasts: torch.Tensor, targets: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+def nms(forecasts: torch.Tensor, targets: torch.Tensor, anchors: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     keep = [True for _ in range(targets.shape[0])]
     for i in range(targets.shape[0]-1):
         if not keep[i]:
@@ -34,7 +34,8 @@ def nms(forecasts: torch.Tensor, targets: torch.Tensor) -> Tuple[torch.Tensor, t
             indices.append(ind)
         ind += 1
 
-    return forecasts[:, torch.tensor(indices, dtype=torch.long), :, :], targets[torch.tensor(indices, dtype=torch.long), :]
+    indices = torch.tensor(indices, dtype=torch.long)
+    return forecasts[:, indices, :, :], targets[indices, :], anchors[indices, :]
 
 
 def evaluate(
@@ -99,7 +100,7 @@ def evaluate(
             forecasts, targets, anchors, all_forecasts = \
                 outputs['forecasts'], outputs['targets'][0], outputs['anchors'][0], outputs['all_forecasts'][0]
 
-            forecasts, targets = nms(forecasts, targets)
+            forecasts, targets, anchors = nms(forecasts, targets, anchors)
             assert forecasts.shape[1] == 6 and targets.shape[0] == 6
 
             forecasts = forecasts.cumsum(axis=2)  # transform differences to trajectory
