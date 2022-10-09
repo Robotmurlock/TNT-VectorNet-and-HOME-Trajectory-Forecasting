@@ -33,6 +33,8 @@ python3 common_data_processing/script_vectorize_hd_maps.py --cfg [cfg]
 
 Original paper can be found [here](https://arxiv.org/abs/2008.08294).
 
+
+
 ### Usage
 
 To train `TNT-Vectornet` it is also required to transform vectorized HD maps (acquired from previous step) into polylines structure (config section: `graph/data_process`)
@@ -120,3 +122,16 @@ Current results (optimal MR model):
     - custom (val): 0.15
     - original (val): 0.07
     - original (test): 0.10
+
+## Citation
+
+```
+@misc{madzemovic_home_tnt-vectornet,
+  author = {Adzemovic, Momir},
+  title = {Trajectory Forecasting on scenes with multiple moving objects},
+  year = {2022},
+  publisher = {GitHub, MATF},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/Robotmurlock/TNT-VectorNet-and-HOME-Trajectory-Forecasting}},
+}
+```
