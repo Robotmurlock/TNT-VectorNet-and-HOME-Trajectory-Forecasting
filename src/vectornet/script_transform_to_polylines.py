@@ -9,9 +9,9 @@ from typing import List
 
 import numpy as np
 
-import configparser
+import config_parser
 from common_data_processing import pipeline
-from configparser.utils import steps
+from config_parser.utils import steps
 from library import conventions
 from library.datasets.data_models import ScenarioData, ObjectType
 from library.utils import time
@@ -209,7 +209,7 @@ class GraphPipeline(pipeline.Pipeline):
     def __init__(
         self,
         output_path: str,
-        config: configparser.GlobalConfig,
+        config: config_parser.GlobalConfig,
         visualize: bool = False,
         report=True
     ):
@@ -311,7 +311,7 @@ class GraphPipeline(pipeline.Pipeline):
         pass
 
 @time.timeit
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     """
     Converts vectorized structured data to vectorized polyline structured data
     Args:
@@ -349,4 +349,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

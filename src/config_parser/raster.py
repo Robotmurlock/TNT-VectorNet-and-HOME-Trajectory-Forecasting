@@ -15,7 +15,7 @@ class DataProcessRasterizationParametersConfig:
     max_neighbours: int
 
     @property
-    def agent_view_window_halfize(self) -> int:
+    def agent_view_window_halfsize(self) -> int:
         return self.agent_view_window_size // 2
 
 

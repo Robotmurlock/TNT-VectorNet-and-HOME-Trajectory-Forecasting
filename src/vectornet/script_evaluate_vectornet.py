@@ -3,15 +3,15 @@ Script to evaluate TNT-VectorNet
 """
 import os
 
-import configparser
-from configparser.utils import steps
+import config_parser
+from config_parser.utils import steps
 from datasets.vectornet_dataset import GraphScenarioDataset
 from library import conventions
 from vectornet.architecture import TargetDrivenForecaster, LiteTNTLoss
 from vectornet.evaluation import eval_vectornet
 
 
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     vectornet_model_storage_path = os.path.join(config.model_storage_path, 'vectornet')
     model_storage_path = os.path.join(vectornet_model_storage_path, config.graph.train.model_name)
 
@@ -45,4 +45,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

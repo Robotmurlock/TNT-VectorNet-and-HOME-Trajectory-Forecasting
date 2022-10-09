@@ -8,13 +8,13 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-import configparser
+import config_parser
 from home.architecture import LightningTrajectoryForecaster
 from library.datasets import ScenarioDatasetTorchWrapper
-from configparser.utils import steps
+from config_parser.utils import steps
 
 
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     train_input_path = os.path.join(config.global_path, config.raster.train_tf.train_input_path)
     val_input_path = os.path.join(config.global_path, config.raster.train_tf.val_input_path)
     model_name = config.raster.train_tf.model_name
@@ -56,4 +56,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

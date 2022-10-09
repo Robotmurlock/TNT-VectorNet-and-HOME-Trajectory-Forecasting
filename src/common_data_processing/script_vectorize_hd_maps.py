@@ -13,12 +13,12 @@ from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecas
 from argoverse.map_representation.map_api import ArgoverseMap
 from scipy.spatial.distance import euclidean
 
-import configparser
+import config_parser
 from common_data_processing import exceptions, pipeline
 from library import conventions
 from library.datasets.data_models.scenario import ScenarioData
 from library.utils import trajectories, lists, time
-from configparser.utils import steps
+from config_parser.utils import steps
 
 logger = logging.getLogger('DataProcess')
 
@@ -487,7 +487,7 @@ class ArgoverseHDPipeline(pipeline.Pipeline):
     def __init__(
         self,
         output_path: str,
-        config: configparser.GlobalConfig,
+        config: config_parser.GlobalConfig,
         argoverse_map: ArgoverseMap,
         completed_sequences: Optional[Union[Set[str], List[str]]] = None,
         visualize: bool = False
@@ -615,7 +615,7 @@ class ArgoverseForecastingLoaderWrapper:
 
 
 @time.timeit
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     """
     Processes rad HD map using ArgoVerse API
 
@@ -654,4 +654,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

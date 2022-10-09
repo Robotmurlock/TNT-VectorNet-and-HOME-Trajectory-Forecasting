@@ -6,7 +6,7 @@ from typing import Dict, Optional, Tuple
 import torch
 from pytorch_lightning import LightningModule
 
-from configparser.graph import GraphTrainConfigParameters
+from config_parser.graph import GraphTrainConfigParameters
 from library.ml.metrics import metrics
 from vectornet.architecture.loss import LiteTNTLoss
 from vectornet.architecture.target_generator import TargetGenerator

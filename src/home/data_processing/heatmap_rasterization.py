@@ -15,8 +15,8 @@ import numpy as np
 from argoverse.map_representation.map_api import ArgoverseMap
 from tqdm import tqdm
 
-import configparser
-from configparser.utils import steps
+import config_parser
+from config_parser.utils import steps
 from home.datasets.raster_scenario import RasterScenarioData
 from library import conventions
 from library.datasets.data_models import ScenarioData, RectangleBox
@@ -337,7 +337,7 @@ def pad_objects_trajectories(
 
 
 class ScenarioRasterPreprocess:
-    def __init__(self, config: configparser.GlobalConfig, disable_visualization: bool = False):
+    def __init__(self, config: config_parser.GlobalConfig, disable_visualization: bool = False):
         """
         TODO
 
@@ -364,10 +364,10 @@ class ScenarioRasterPreprocess:
         c_x = int(c_x + self._city_cache[scenario.city][1][1, 2])
 
         view = RectangleBox(
-            up=c_y - self._params.agent_view_window_halfize,
-            left=c_x - self._params.agent_view_window_halfize,
-            bottom=c_y + self._params.agent_view_window_halfize,
-            right=c_x + self._params.agent_view_window_halfize,
+            up=c_y - self._params.agent_view_window_halfsize,
+            left=c_x - self._params.agent_view_window_halfsize,
+            bottom=c_y + self._params.agent_view_window_halfsize,
+            right=c_x + self._params.agent_view_window_halfsize,
         )
         view_normalized = view.move(-c_y, -c_x)
 
@@ -430,7 +430,7 @@ class ScenarioRasterPreprocess:
 
 
 @time.timeit
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     """
     Converts vectorized structured data to images
     Args:
@@ -459,4 +459,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

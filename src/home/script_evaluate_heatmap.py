@@ -6,14 +6,14 @@ import os
 from home.architecture import PixelFocalLoss
 from library import conventions
 
-import configparser
+import config_parser
 from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDataset
 from home.architecture import HeatmapTrajectoryForecaster
 from home.evaluation import eval_home
-from configparser.utils import steps
+from config_parser.utils import steps
 
 
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     """
     Evaluates HOME model end-to-end
 
@@ -55,4 +55,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

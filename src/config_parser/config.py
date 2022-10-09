@@ -6,9 +6,9 @@ import dacite
 import numpy as np
 import yaml
 
-from configparser.graph import GraphConfig
-from configparser.raster import RasterConfig
-from configparser.utils import steps
+from config_parser.graph import GraphConfig
+from config_parser.raster import RasterConfig
+from config_parser.utils import steps
 
 
 @dataclass
@@ -79,6 +79,10 @@ class GlobalConfig:
         logging.getLogger('matplotlib').setLevel(logging.CRITICAL)
 
     @classmethod
+    def from_dict(cls, raw: dict) -> 'GlobalConfig':
+        return dacite.from_dict(data_class=cls, data=raw)
+
+    @classmethod
     def load(cls, path: str) -> 'GlobalConfig':
         """
         Creates global config object from yaml file path
@@ -90,4 +94,4 @@ class GlobalConfig:
         """
         with open(path, 'r', encoding='utf-8') as file_stream:
             raw = yaml.safe_load(file_stream)
-        return dacite.from_dict(data_class=cls, data=raw)
+        return cls.from_dict(raw)

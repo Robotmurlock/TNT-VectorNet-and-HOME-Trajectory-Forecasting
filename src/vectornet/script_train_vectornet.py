@@ -9,15 +9,15 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-import configparser
-from configparser.utils import steps
+import config_parser
+from config_parser.utils import steps
 from datasets.vectornet_dataset import VectorNetScenarioDataset
 from vectornet.architecture import TargetDrivenForecaster
 
 logger = logging.getLogger('TrainVectornet')
 
 
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     """
     python3 <path>/script_train_vectornet.py --config config_path
 
@@ -79,4 +79,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

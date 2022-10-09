@@ -8,13 +8,13 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-import configparser
+import config_parser
 from datasets.heatmap_dataset import HeatmapOutputRasterScenarioDatasetTorchWrapper
 from home.architecture import LightningHeatmapModel
-from configparser.utils import steps
+from config_parser.utils import steps
 
 
-def run(config: configparser.GlobalConfig):
+def run(config: config_parser.GlobalConfig):
     train_config = config.raster.train_heatmap
     parameters = train_config.parameters
 
@@ -64,4 +64,4 @@ def run(config: configparser.GlobalConfig):
 
 
 if __name__ == '__main__':
-    run(configparser.GlobalConfig.load(steps.get_config_path()))
+    run(config_parser.GlobalConfig.load(steps.get_config_path()))

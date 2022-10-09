@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_lightning import LightningModule
 
-from configparser.raster import RasterizationTrainTrajectoryForecasterParametersConfig
+from config_parser.raster import RasterizationTrainTrajectoryForecasterParametersConfig
 from library.ml.metrics import metrics
 
 

@@ -10,13 +10,13 @@ from typing import List, Dict
 import torch
 from torch.utils.data import Dataset
 
-import configparser
+import config_parser
 from home.data_processing.heatmap_rasterization import ScenarioRasterPreprocess
 from home.datasets.raster_scenario import RasterScenarioData
 
 
 class HeatmapOutputRasterScenarioDataset:
-    def __init__(self, config: configparser.GlobalConfig, split: str):
+    def __init__(self, config: config_parser.GlobalConfig, split: str):
         """
         Dataset for loading processed rasterized files
 
@@ -43,7 +43,7 @@ class HeatmapOutputRasterScenarioDataset:
             yield self[index]
 
 class HeatmapOutputRasterScenarioDatasetTorchWrapper(Dataset):
-    def __init__(self, config: configparser.GlobalConfig, split: str):
+    def __init__(self, config: config_parser.GlobalConfig, split: str):
         """
         Dataset for loading processed files
 
