@@ -7,4 +7,7 @@ PyYAML==6.0
 torch==1.11.0+cu113
 tqdm==4.64.0
 pytorch_lightning
-fastdtw
+fastdtw~=0.3.4
+torchvision~=0.12.0+cu113
+opencv-python~=4.5.5.64
+scipy~=1.8.1

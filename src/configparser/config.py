@@ -1,13 +1,14 @@
-from dataclasses import dataclass, field
-import yaml
-import dacite
-from typing import Optional, List
-import numpy as np
 import logging
+from dataclasses import dataclass, field
+from typing import Optional, List
 
-import utils.steps
-from configparser.raster import RasterConfig
+import dacite
+import numpy as np
+import yaml
+
 from configparser.graph import GraphConfig
+from configparser.raster import RasterConfig
+from configparser.utils import steps
 
 
 @dataclass
@@ -59,8 +60,8 @@ class GlobalConfig:
     raster: Optional[RasterConfig]
     graph: Optional[GraphConfig]
 
-    global_path: Optional[str] = field(default=utils.steps.SOURCE_PATH)
-    model_storage_path: Optional[str] = field(default=utils.steps.MODEL_PATH)
+    global_path: Optional[str] = field(default=steps.SOURCE_PATH)
+    model_storage_path: Optional[str] = field(default=steps.MODEL_PATH)
 
     def __post_init__(self):
         self.configure_logging()
@@ -77,16 +78,16 @@ class GlobalConfig:
         )
         logging.getLogger('matplotlib').setLevel(logging.CRITICAL)
 
+    @classmethod
+    def load(cls, path: str) -> 'GlobalConfig':
+        """
+        Creates global config object from yaml file path
 
-def config_from_yaml(path: str) -> GlobalConfig:
-    """
-    Creates global config object from yaml file path
+        Args:
+            path: Yaml file location
 
-    Args:
-        path: Yaml file location
-
-    Returns: Global configs
-    """
-    with open(path, 'r', encoding='utf-8') as file_stream:
-        raw = yaml.safe_load(file_stream)
-    return dacite.from_dict(data_class=GlobalConfig, data=raw)
+        Returns: Global configs
+        """
+        with open(path, 'r', encoding='utf-8') as file_stream:
+            raw = yaml.safe_load(file_stream)
+        return dacite.from_dict(data_class=cls, data=raw)
