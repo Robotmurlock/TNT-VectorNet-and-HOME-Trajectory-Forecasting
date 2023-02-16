@@ -1,63 +1,61 @@
 log:
-  level: 'DEBUG'
+  level: 'DEBUG'  # Logger debugging level
 global_parameters:
-  trajectory_history_window_length: 20
-  trajectory_future_window_length: 30
-global_path: '/workspace'
-model_storage_path: '/workspace/model_storage'
-data_process:
-  input_path: 'dataset'
-  output_path: 'internal'
-  n_processes: 1
-  visualize: False
+  trajectory_history_window_length: 20  # Length of input trajectory - default for Argoverse
+  trajectory_future_window_length: 30  # Length of output trajectory - default for Argoverse
+global_path: '/workspace'  # Global path
+model_storage_path: '/workspace/model_storage'  # Path where model data is stored
+data_process:  # Data preprocessing that is universal for both TNT-VectorNet and HOME architectures
+  input_path: 'dataset'  # Path to input dataset (relative to global path)
+  output_path: 'internal'  # Path where vectorized trajectories are stored (relative to global path)
+  n_processes: 1  # Multiprocessing workers
+  visualize: False  # Visualize output (requires n_processes == 1) - Use on small sample
   parameters:
-    trajectory_min_history_window_length: 5
-    object_trajectory_min_history_window_length: 5
-    object_trajectory_min_future_window_length: 3
-    object_distance_threshold: 100
-    centerline_radius_scale: 3.0
-    add_neighboring_lanes: True
-    lane_radius_scale: 5.0
-    min_lane_radius: 50.0
-graph:
+    trajectory_min_history_window_length: 5  # Filter: Remove all trajectories that have very short history (observed) trajectory
+    object_trajectory_min_history_window_length: 5  # Filter: Remove all non-agent trajectories that have very short history (not observed) trajectory
+    object_trajectory_min_future_window_length: 3  # Filter: Remove all non-agent trajectories that have very short future trajectory
+    object_distance_threshold: 100  # Filter: Remove all non-agent trajectories that are too far from the agent
+    centerline_radius_scale: 3.0  # Centerline sampling: maximum distance to sample some centerline using Argoverse-api
+    add_neighboring_lanes: True  # Sample neighbouring line segments from acquired initial lane sample
+    lane_radius_scale: 5.0  # Radius to sample neighbouring objects (multiplied with agent velocity)
+    min_lane_radius: 50.0  # Centerline sampling: Minimum value for lane radius
+graph:  # Data processing that is specific for TNT-VectorNet
   data_process:
-    input_path: 'internal'
-    output_path: 'internal_graph'
-    max_polyline_segments: 20
-    max_polylines: 100
-    normalization_parameter: 25.0
-    sampling_algorithm: 'polyline'
-    visualize: False
-    visualize_anchors: True
-    visualize_candidate_centerlines: True
-    report: True
-  train:
-    train_input_path: 'internal_graph/train'
-    val_input_path: 'internal_graph/val'
-    model_name: 'vectornet-v2-50'
-    visualize: False
-    n_workers: 8
+    # Note: number of workers is set in `data_process` section (TODO: decouple)
+    input_path: 'internal'  # Path to input data - output of universal data processing (relative to global path)
+    output_path: 'internal_graph'  # Path to where vectorized polylines are saved
+    max_polyline_segments: 20  # Fixed length for every polyline (check code for padding and cutting algorithm)
+    max_polylines: 100  # Maximum number of polylines in scene (filtered by distance ranking)
+    normalization_parameter: 25.0  # Scales all polyline coordinates by this factor (1/x)
+    sampling_algorithm: 'polyline'  # Sampling algorithm (check code for options)
+    visualize: False  # Visualize output
+    visualize_anchors: True  # Visualize anchors sampling algorithm (requires visualize == True)
+    visualize_candidate_centerlines: True  # Visualize centerlines sampling algorithm (requires visualize == True)
+    report: True  # Report processing statistics
+  train:  # TNT-VectorNet training configuration
+    train_input_path: 'internal_graph/train'  # Path to train dataset
+    val_input_path: 'internal_graph/val'  # Path to val dataset
+    model_name: 'vectornet-v2-50'  # Experiment (model) name
+    visualize: False  # Visualize output
+    n_workers: 8  # Number of workers for DataLoader
     parameters:
-      epochs: 50
-      n_targets: 6
-      n_trajectories: 6
-      batch_size: 64
-      tg_lr: 0.0001
-      tg_sched_step: 15
+      epochs: 50  # Number of epochs
+      n_targets: 6  # Number of targets to sample (can be higher than number of trajectories)
+      n_trajectories: 6  # Number of predicted trajectories - default for Argoverse
+      batch_size: 64  # Batch size
+      tg_lr: 0.0001  # Learning rate for Target (anchor) Generator
+      tg_sched_step: 15  # TG learning rate scheduler
       tg_sched_gamma: 0.1
-      tf_lr: 0.0001
-      tf_sched_step: 15
+      tf_lr: 0.0001  # Learning rate for Trajectory forecaster
+      tf_sched_step: 15  # TF learning rate scheduler
       tf_sched_gamma: 0.1
-      tfs_lr: 0.0001
-      tfs_sched_step: 15
+      tfs_lr: 0.0001  # Learning rate for Trajectory forecast scorer
+      tfs_sched_step: 15  # TFS learning rage scheduler
       tfs_sched_gamma: 0.1
-      huber_delta: 0.20
-      use_traj_scoring: False
-model:
-  name: 'vectornet'
-  config_path: 'configs/model_config.yaml'
-evaluation:
-  input_path: 'internal_graph'
-  output_path: 'result'
-  model_path: 'model_storage/vectornet-no-traj-old-config-30'
-  visualize: False
+      huber_delta: 0.20  # Huber loss function parameter
+      use_traj_scoring: False  # Choose trajectories by traj score instead of target score (requires n_targets == n_trajectories when False)
+evaluation:  # Model evaluation
+  input_path: 'internal_graph'  # Path to processed data
+  output_path: 'result'  # Evaluation output path
+  model_path: 'model_storage/vectornet-no-traj-old-config-30'  # Model path (where checkpoint is)
+  visualize: False  # Visualize output

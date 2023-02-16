@@ -3,6 +3,9 @@
 !requirements.txt
 **/emain.yaml
 
+# MacOs
+.DS_Store
+
 # Project
 data
 **/map_files

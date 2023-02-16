@@ -1,3 +1,4 @@
+# Check vectornet.yaml for non-raster configuration docs
 log:
   level: 'DEBUG'
 global_parameters:
@@ -20,49 +21,46 @@ data_process:
     lane_radius_scale: 5.0
     min_lane_radius: 50.0
 raster:
-  data_process:
-    input_path: 'internal'
-    output_path: 'internal_raster'
-    visualize: True
+  data_process:  # Data processing for HOME architecture
+    input_path: 'internal'  # Path to vectorized HD maps
+    output_path: 'internal_raster'  # Output path - only for testing
+    visualize: True  # Visualize - only for testing
     debug_visualize: True
     parameters:
-      agent_view_window_size: 224
-      object_shape: [6, 6]
-      centerline_point_shape: [6, 6]
-      gauss_kernel_size: 25
+      agent_view_window_size: 224  # Agent does not see any objects outside its view (112 radius)
+      object_shape: [6, 6]  # Agent and neighbours object shape - shape drawn on input image
+      centerline_point_shape: [6, 6]  # Centerline object shape - shape drawn on input image
+      gauss_kernel_size: 25  # Gauss kernel for ground truth trajectory end point
       gauss_kernel_sigma: 4
-      max_neighbours: 20
-  train_tf:
-    train_input_path: 'internal/train'
-    val_input_path: 'internal/val'
-    output_path: 'model_storage/heatmap_tf'
-    n_workers: 8
-    model_name: 'home-forecster-baseline'
+      max_neighbours: 20  # Maximum number of neighbours (moving objects)
+  train_tf:  # Training configuration to trajectory forecaster (one of two components)
+    train_input_path: 'internal/train'  # Path to train dataset
+    val_input_path: 'internal/val'  # Path to val dataset
+    output_path: 'model_storage/heatmap_tf'  # Path
+    n_workers: 8  # Dataloader workers
+    model_name: 'home-forecaster-baseline'  # Model (experiment) name
     parameters:
-      epochs: 20
-      lr: 0.01
-      batch_size: 128
-      sched_step: 10
+      epochs: 20  # Number of epochs for training
+      lr: 0.01  # Learning rate
+      batch_size: 128  # Batch size
+      sched_step: 10  # Learning rate scheduler
       sched_gamma: 0.1
   train_heatmap:
-    train_input_path: 'TODO'
-    val_input_path: 'TODO'
-    model_name: 'home-baseline'
-    n_workers: 8
-    resume: True
-    starting_checkpoint_name: 'last.ckpt'
+    train_input_path: 'TODO'  # TODO: Hardcoded
+    val_input_path: 'TODO'  # TODO: Hardcoded
+    model_name: 'home-baseline'  # Model (experiment) name
+    n_workers: 8  # Dataloader workers
+    resume: True  # Resume from last checkpoint
+    starting_checkpoint_name: 'last.ckpt'  # Path to checkpoint in case the training is resumed
     parameters:
-      epochs: 15
-      sampler_targets: 6
-      sampler_radius: 2
-      batch_size: 16
-      augmentation: True
-      base_lr: 0.001
-      sched_step: 4
+      epochs: 15  # Number of epochs for training
+      sampler_targets: 6  # Number of anchors (end point) to sample from heatmap (top k)
+      sampler_radius: 2  # Greedy sampling algorithm radius (check code for more information)
+      batch_size: 16  # Batch size
+      augmentation: True  # Use horizontal flip augmentation
+      base_lr: 0.001  # Learning rate
+      sched_step: 4  # Learning rate scheduler
       sched_gamma: 0.5
-model:
-  name: 'vectornet'
-  config_path: 'configs/model_config.yaml'
 evaluation:
   input_path: 'internal_graph'
   output_path: 'result'

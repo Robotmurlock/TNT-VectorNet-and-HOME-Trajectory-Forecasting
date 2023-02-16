@@ -29,6 +29,27 @@ First step for both approaches is HD map vectorization (config section: `data_pr
 python3 common_data_processing/script_vectorize_hd_maps.py --cfg [cfg]
 ```
 
+### Data structure
+
+Path where all data are stored (input data, intermediate data and results) is `global_path` defined in config yaml file. Relative to that
+directory path this structure can be found:
+
+```
+dataset/  # Add argoverse raw csv files here
+  train/*
+    ... csv files
+  val/*
+  test/*
+internal/*  # Generated after running common_data_processing/script_vectorize_hd_maps.py
+  train/*
+  val/*
+  test/*
+internal_graph/*  # Generated after running vectornet/script_transform_to_polylines.py
+  train/*
+  val/*
+  test/*
+```
+
 ## TNT-VectorNet
 
 Original paper can be found [here](https://arxiv.org/abs/2008.08294).

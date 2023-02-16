@@ -1,6 +1,6 @@
 dacite==1.6.0
 matplotlib==3.5.1
-numpy==1.19.0
+numpy==1.22.0
 opencv_python==4.5.5.64
 pandas==1.4.2
 PyYAML==6.0
