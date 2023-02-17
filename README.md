@@ -144,6 +144,11 @@ Current results (optimal MR model):
     - original (val): 0.07
     - original (test): 0.10
 
+## Model Zoo
+
+Best checkpoints for `TNT-VectorNet` and `HOME` can be found 
+[on google drive](https://drive.google.com/drive/u/0/folders/1zckkDG90xO0o8BXHo4ZVXGLFzkKE35XZ).
+
 ## Citation
 
 ```
