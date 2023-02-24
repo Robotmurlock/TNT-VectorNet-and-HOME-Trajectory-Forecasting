@@ -214,13 +214,13 @@ class GraphPipeline(pipeline.Pipeline):
         report=True
     ):
         """
-        TODO
+        Transforms all HD map vectorized data to polylines
 
         Args:
-            output_path:
-            config:
-            visualize:
-            report:
+            output_path: Path where to store polylines intermediate data
+            config: Config
+            visualize: Visualize output (True/False)
+            report: Statistics report
         """
         super().__init__(output_path=output_path, visualize=visualize, report=report)
         self._config = config
@@ -229,6 +229,7 @@ class GraphPipeline(pipeline.Pipeline):
 
     def process(self, data: str) -> GraphScenarioData:
         scenario = ScenarioData.load(data)
+
         # create polylines
         agent_polyline = create_polyline(
             polyline_data=scenario.agent_traj_hist,
@@ -255,7 +256,7 @@ class GraphPipeline(pipeline.Pipeline):
         candidate_polylines_points = [cp[:, :2] for cp in candidate_polylines]
         anchors = sample_anchor_points(candidate_polylines_points, sample_size=50, sampling_algorithm=self._dpg_config.sampling_algorithm)
 
-        # Pad all polylines to dimension (20, 9) where last dimension is mask TODO
+        # Pad all polylines to dimension (20, 9) where last dimension is mask
         polylines = [trajectories.pad_trajectory(p, self._dpg_config.max_polyline_segments, trajectories.PadType.PAST)[0]
                      for p in polylines]
 
@@ -317,6 +318,9 @@ def run(config: config_parser.GlobalConfig):
     Args:
         config: Config
     """
+    assert config.data_process.n_processes == 1, \
+        'Multiprocessing is currently not working properly. Please use data_process.n_proccesses == 1'
+
     dpg_config = config.graph.data_process
     inputs_path = os.path.join(config.global_path, dpg_config.input_path)
     outputs_path = os.path.join(config.global_path, dpg_config.output_path)
@@ -344,8 +348,6 @@ def run(config: config_parser.GlobalConfig):
             report=dpg_config.report
         )
         pipeline.run_pipeline(pipeline=graph_pipeline, data_iterator=scenario_paths, n_processes=config.data_process.n_processes)
-
-        logger.info(f'Started datasets processing for {split_name}.')
 
 
 if __name__ == '__main__':

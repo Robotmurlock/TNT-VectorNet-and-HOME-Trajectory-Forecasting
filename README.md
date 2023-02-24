@@ -61,6 +61,8 @@ Original paper can be found [here](https://arxiv.org/abs/2008.08294).
 To train `TNT-Vectornet` it is also required to transform vectorized HD maps (acquired from previous step) into polylines structure (config section: `graph/data_process`)
 Note: Set `visualize: True` to visualize output.
 
+Multiprocessing for this script is currently disabled until fixed. Please use single process (data\_process: n\_processes: 1).
+
 ```
 python3 vectornet/script_transform_to_polylines.py --cfg [cfg]
 ```
