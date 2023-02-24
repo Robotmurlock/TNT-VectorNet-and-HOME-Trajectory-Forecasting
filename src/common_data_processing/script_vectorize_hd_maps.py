@@ -59,7 +59,9 @@ def process_agent_data(
 
     len_threshold = trajectory_future_window_length + trajectory_min_history_window_length
     if df_agent_traj.shape[0] < len_threshold:
-        msg = f'Trajectory length threshold is {len_threshold} but found length is {df_agent_traj.shape[0]}!'
+        msg = f'Trajectory length threshold is {len_threshold} but found length is {df_agent_traj.shape[0]}! ' \
+              f'Minimum trajectory future (unobserved) length is {trajectory_future_window_length} ' \
+              f'while minimum history (observed) trajectory window length is set to {trajectory_min_history_window_length}.'
         raise exceptions.AgentTrajectoryMinLengthThresholdException(msg)
 
     # extract future (ground truth) and history trajectory
