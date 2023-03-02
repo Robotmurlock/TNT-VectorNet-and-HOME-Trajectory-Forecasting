@@ -13,6 +13,7 @@ class DataProcessRasterizationParametersConfig:
     gauss_kernel_size: int
     gauss_kernel_sigma: int
     max_neighbours: int
+    normalization_parameter: float
 
     @property
     def agent_view_window_halfsize(self) -> int:

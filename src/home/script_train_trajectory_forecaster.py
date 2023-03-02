@@ -30,7 +30,7 @@ def run(config: config_parser.GlobalConfig):
         trajectory_hist_length=config.global_parameters.trajectory_history_window_length,
         trajectory_future_length=config.global_parameters.trajectory_future_window_length,
         train_config=train_parameters,
-        traj_scale=config.graph.data_process.normalization_parameter
+        traj_scale=config.raster.data_process.parameters.normalization_parameter
     )
     logger = TensorBoardLogger(model_path, name=train_config.model_name)
     trainer = Trainer(

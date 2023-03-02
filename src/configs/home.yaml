@@ -33,6 +33,7 @@ raster:
       gauss_kernel_size: 25  # Gauss kernel for ground truth trajectory end point
       gauss_kernel_sigma: 4
       max_neighbours: 20  # Maximum number of neighbours (moving objects)
+      normalization_parameter: 25.0  # Scales all polyline coordinates by this factor (1/x)
   train_tf:  # Training configuration to trajectory forecaster (one of two components)
     train_input_path: 'internal/train'  # Path to train dataset
     val_input_path: 'internal/val'  # Path to val dataset
